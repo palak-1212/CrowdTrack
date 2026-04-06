@@ -114,3 +114,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 .page-body::-webkit-scrollbar{width:4px}
 .page-body::-webkit-scrollbar-track{background:transparent}
 .page-body::-webkit-scrollbar-thumb{background:var(--accent2);border-radius:2px}
+
+.tab-page{display:none;animation:fadeSlide .35s ease forwards}
+.tab-page.active{display:block}
+@keyframes fadeSlide{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
