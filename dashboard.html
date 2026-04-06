@@ -979,3 +979,6 @@ function sparkLine(data,W,H){
     return `${i===0?'M':'L'}${x.toFixed(1)},${y.toFixed(1)}`;
   }).join(' ');
 }
+function renderPredictionTab(){
+  const pred=computePrediction(history.total,'total');
+  renderPredictionBanner(pred);
