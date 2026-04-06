@@ -431,3 +431,26 @@ canvas.line-chart{width:100%;height:100%;display:block}
         </div>
 
         <div class="row row-3">
+            <div class="panel">
+            <div class="panel-head">
+              <span class="panel-title">Zone Status</span>
+              <span class="panel-badge" id="overviewZoneBadge" style="border-color:var(--accent);color:var(--accent)">ALL CLEAR</span>
+            </div>
+            <div class="panel-body">
+              <div class="zone-grid" id="zoneGrid"></div>
+            </div>
+          </div>
+          <!-- Entries + alerts -->
+          <div style="display:flex;flex-direction:column;gap:14px">
+            <div class="panel">
+              <div class="panel-head"><span class="panel-title">Gate Nodes</span></div>
+              <div class="panel-body"><div class="entry-grid" id="entryGrid"></div></div>
+            </div>
+            <div class="panel" style="flex:1">
+              <div class="panel-head"><span class="panel-title">Recent Alerts</span></div>
+              <div class="panel-body" style="padding:8px">
+                <div class="alert-list" id="alertList"><div class="no-alerts">No alerts</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
