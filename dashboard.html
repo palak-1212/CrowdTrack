@@ -454,3 +454,42 @@ canvas.line-chart{width:100%;height:100%;display:block}
             </div>
           </div>
         </div>
+        <div class="panel">
+          <div class="panel-head"><span class="panel-title">Occupancy Trend (last 60 ticks)</span></div>
+          <div class="panel-body">
+            <div class="chart-wrap"><canvas id="trendChart"></canvas></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── ZONES TAB ── -->
+      <div class="tab-page" id="t-zones">
+        <div class="zones-full-grid" id="zonesFullGrid"></div>
+      </div>
+
+      <!-- ── MONITOR TAB ── -->
+      <div class="tab-page" id="t-monitor">
+        <div class="panel" style="margin-bottom:16px">
+          <div class="panel-head">
+            <span class="panel-title">Live Zone Monitor — Crowd Density View</span>
+            <span id="monitorBadge" class="panel-badge" style="border-color:var(--accent);color:var(--accent)">LIVE</span>
+          </div>
+          <div class="panel-body">
+            <div class="monitor-wrap">
+              <canvas class="monitor-canvas" id="monitorCanvas"></canvas>
+            </div>
+          </div>
+        </div>
+        <div class="row row-2">
+          <div class="panel">
+            <div class="panel-head"><span class="panel-title">Gate Entry Rates</span></div>
+            <div class="panel-body"><div class="entry-grid" id="entryGrid2"></div></div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><span class="panel-title">Zone Comparison</span></div>
+            <div class="panel-body">
+              <div class="chart-wrap" style="height:130px"><canvas id="barChart2"></canvas></div>
+            </div>
+          </div>
+        </div>
+      </div>
