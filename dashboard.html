@@ -889,3 +889,15 @@ function renderZoneGrid(d){
     </div>`;
   }).join('');
 }
+function renderEntryGrid(d){
+  ['entryGrid','entryGrid2'].forEach(id=>{
+    const el=document.getElementById(id); if(!el) return;
+    el.innerHTML=GATES.map(g=>{
+      const v=d[g.key]||0;
+      return `<div class="entry-row">
+        <div><div class="entry-label">${g.name}</div><div class="entry-unit">people / min</div></div>
+        <div class="entry-val">${v}</div>
+      </div>`;
+    }).join('');
+  });
+}
