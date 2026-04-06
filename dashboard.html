@@ -181,3 +181,13 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 .entry-label{font-size:.67rem;font-family:var(--font-mono);color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
 .entry-val{font-family:var(--font-d);font-size:1.1rem;font-weight:700;color:var(--accent)}
 .entry-unit{font-size:.6rem;color:var(--muted2);margin-top:1px;font-family:var(--font-mono)}
+
+.alert-list{display:flex;flex-direction:column;gap:6px;max-height:210px;overflow-y:auto}
+.alert-item{display:flex;align-items:flex-start;gap:10px;padding:9px 10px;border-radius:4px;background:rgba(0,0,0,.15);border-left:3px solid;font-size:.76rem}
+.alert-item.danger{border-color:var(--danger);color:rgba(255,23,68,.9)}
+.alert-item.warn{border-color:var(--warn);color:rgba(255,152,0,.9)}
+.alert-item.info{border-color:var(--info);color:rgba(0,176,255,.9)}
+.alert-icon{width:13px;height:13px;margin-top:1px;flex-shrink:0;stroke:currentColor;fill:none;stroke-width:2}
+.alert-body{flex:1;color:var(--text);font-family:var(--font-mono);font-size:.7rem}
+.alert-time{font-size:.61rem;font-family:var(--font-mono);color:var(--muted2);margin-top:2px}
+.no-alerts{font-size:.72rem;font-family:var(--font-mono);color:var(--muted2);text-align:center;padding:20px}
