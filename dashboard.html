@@ -1135,3 +1135,68 @@ function updateBarChart(d){
     });
   });
 }
+function drawHeatmap(){
+  const canvas=document.getElementById('heatmapCanvas');
+  const wrap=canvas.parentElement;
+  canvas.width=wrap.clientWidth||600;
+  canvas.height=Math.max(320,wrap.clientHeight||320);
+  const W=canvas.width,H=canvas.height;
+  const ctx=canvas.getContext('2d');
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#020d18';ctx.fillRect(0,0,W,H);
+
+  const regions=[
+    {key:'zone1',x:.02,y:.06,w:.45,h:.42,label:'Zone 1\nNorth Wing'},
+    {key:'zone2',x:.53,y:.06,w:.45,h:.42,label:'Zone 2\nMain Hall'},
+    {key:'zone3',x:.02,y:.54,w:.45,h:.41,label:'Zone 3\nSouth Wing'},
+    {key:'zone4',x:.53,y:.54,w:.45,h:.41,label:'Zone 4\nEast Atrium'},
+  ];
+  regions.forEach(r=>{
+    const val=currentData[r.key]||0;
+    const pct=Math.min(1,val/MAX_ZONE);
+    const rx=r.x*W,ry=r.y*H,rw=r.w*W,rh=r.h*H;
+    const heat=heatColor(pct);
+    const cx=rx+rw/2,cy=ry+rh/2;
+    const grad=ctx.createRadialGradient(cx,cy,0,cx,cy,Math.max(rw,rh)*.6);
+    grad.addColorStop(0,heat.replace(')',',0.6)').replace('rgb','rgba'));
+    grad.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=grad;ctx.beginPath();
+    ctx.roundRect?ctx.roundRect(rx,ry,rw,rh,6):ctx.rect(rx,ry,rw,rh);
+    ctx.fill();
+    ctx.strokeStyle=heat.replace(')',',0.3)').replace('rgb','rgba');
+    ctx.lineWidth=1;ctx.stroke();
+    ctx.fillStyle='rgba(224,247,250,0.9)';ctx.textAlign='center';
+    ctx.font=`bold ${Math.floor(rw*.076)}px Orbitron,monospace`;
+    ctx.fillText(r.key==='zone1'?'Zone 1':r.key==='zone2'?'Zone 2':r.key==='zone3'?'Zone 3':'Zone 4',cx,cy-8);
+    ctx.font=`${Math.floor(rw*.062)}px JetBrains Mono,monospace`;
+    ctx.fillStyle=heat;ctx.fillText(val+' / '+MAX_ZONE,cx,cy+10);
+    const s=statusOf(val);
+    ctx.fillStyle=s==='low'?'rgba(0,229,255,.12)':s==='medium'?'rgba(255,152,0,.12)':'rgba(255,23,68,.12)';
+    ctx.beginPath();
+    ctx.roundRect?ctx.roundRect(cx-28,cy+20,56,16,8):ctx.rect(cx-28,cy+20,56,16);
+    ctx.fill();
+    ctx.fillStyle=s==='low'?'#00e5ff':s==='medium'?'#ff9800':'#ff1744';
+    ctx.font=`600 ${Math.floor(rw*.053)}px JetBrains Mono,monospace`;
+    ctx.fillText(s==='low'?'CLEAR':s==='medium'?'BUSY':'CRIT',cx,cy+31);
+    ctx.textAlign='left';
+  });
+  ctx.fillStyle='rgba(0,176,255,.75)';ctx.font='9px JetBrains Mono,monospace';
+  ctx.textAlign='center';ctx.fillText('⬆ Gate 1',W/2,H*.04);ctx.fillText('⬆ Gate 2',W/2,H*.52);ctx.textAlign='left';
+
+  const statsEl=document.getElementById('heatmapStats');
+  if(statsEl){
+    statsEl.innerHTML=ZONES.map(z=>{
+      const v=currentData[z.key]||0,s=statusOf(v),col=statusColor(s);
+      return `<div class="stat-card" style="padding:10px 12px">
+        <div class="stat-label">${z.name} – ${z.sub}</div>
+        <div class="stat-val" style="color:${col};font-size:1.2rem">${v} <span style="font-size:.66rem;color:var(--muted2);font-weight:400">/ ${MAX_ZONE}</span></div>
+      </div>`;
+    }).join('');
+    updateBarChart(currentData);
+  }
+}
+
+function heatColor(pct){
+  if(pct<0.5){ const t=pct*2; return `rgb(${Math.round(0+t*0)},${Math.round(188+t*(130-188))},${Math.round(212+t*(100-212))})`; }
+  const t=(pct-.5)*2; return `rgb(${Math.round(0+t*255)},${Math.round(130+t*(23-130))},${Math.round(100+t*(68-100))})`;
+}
