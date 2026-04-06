@@ -251,3 +251,19 @@ canvas.line-chart{width:100%;height:100%;display:block}
 
 .monitor-wrap{width:100%;min-height:300px;position:relative;border-radius:6px;overflow:hidden;background:#0a1525;border:1px solid var(--border)}
 .monitor-canvas{width:100%;height:100%;display:block;min-height:300px}
+
+@media(max-width:768px){
+  .sidebar{transform:translateX(-100%)}
+  .sidebar.open{transform:translateX(0)}
+  .main-content{margin-left:0}
+  .menu-toggle{display:flex!important}
+}
+.menu-toggle{display:none;background:none;border:none;color:var(--muted2);cursor:pointer;align-items:center;justify-content:center;width:32px;height:32px}
+.menu-toggle svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2}
+
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+</style>
+</head>
+<body>
