@@ -998,3 +998,17 @@ function renderPredictionTab(){
       <div style="font-family:var(--font-mono);font-size:.6rem;color:var(--muted2);margin-top:3px">${currentData[z.key]||0} / ${MAX_ZONE} · slope ${p2.slope!=null?((p2.slope>=0?'+':'')+p2.slope.toFixed(1)):'-'}</div>
     </div>`;
   }).join('');
+ const afEl=document.getElementById('predAlertForecast'); if(!afEl) return;
+  const zonesAtRisk=ZONES.filter(z=>(currentData[z.key]||0)>=THRESH_WARN);
+  if(!zonesAtRisk.length){
+    afEl.innerHTML=`<div style="color:var(--success)">✔ All zones within safe limits</div>`;
+  } else {
+    afEl.innerHTML=zonesAtRisk.map(z=>{
+      const v=currentData[z.key]||0,s=statusOf(v);
+      const col=statusColor(s);
+      return `<div style="padding:8px;border-radius:4px;background:rgba(255,23,68,.05);border:1px solid rgba(255,23,68,.15);margin-bottom:8px">
+        <div style="color:${col};font-weight:600">⚠ ${z.name} — ${v}/${MAX_ZONE}</div>
+        <div style="color:var(--muted);margin-top:3px">${s==='high'?'CRITICAL: Immediate action required':'WARNING: Approaching capacity limit'}</div>
+      </div>`;
+    }).join('');
+  }
