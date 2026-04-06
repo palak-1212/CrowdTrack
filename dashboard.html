@@ -1012,3 +1012,54 @@ function renderPredictionTab(){
       </div>`;
     }).join('');
   }
+  if(predCtx){
+    const canvas=predCtx.canvas;
+    const W=canvas.offsetWidth||600,H=canvas.offsetHeight||200;
+    canvas.width=W;canvas.height=H;
+    const ctx=predCtx;ctx.clearRect(0,0,W,H);
+    const data=history.total;
+    if(data.length>1){
+      // Grid
+      ctx.strokeStyle='rgba(0,229,255,0.05)';ctx.lineWidth=1;
+      for(let i=0;i<5;i++){const y=H*i/4;ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+      const pad=14;
+      const grad=ctx.createLinearGradient(0,0,0,H);
+      grad.addColorStop(0,'rgba(0,229,255,0.22)');grad.addColorStop(1,'rgba(0,229,255,0.01)');
+      ctx.beginPath();
+      data.forEach((v,i)=>{
+        const x=pad+(i/(MAX_HISTORY-1))*(W-pad*2);
+        const y=H-pad-(v/(MAX_ZONE*4))*(H-pad*2);
+        i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+      });
+      const lastX=pad+((data.length-1)/(MAX_HISTORY-1))*(W-pad*2);
+      ctx.lineTo(lastX,H-pad);ctx.lineTo(pad,H-pad);ctx.closePath();
+      ctx.fillStyle=grad;ctx.fill();
+      ctx.beginPath();
+      data.forEach((v,i)=>{
+        const x=pad+(i/(MAX_HISTORY-1))*(W-pad*2);
+        const y=H-pad-(v/(MAX_ZONE*4))*(H-pad*2);
+        i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+      });
+      ctx.strokeStyle='#00e5ff';ctx.lineWidth=2;ctx.shadowColor='#00e5ff';ctx.shadowBlur=6;ctx.stroke();ctx.shadowBlur=0;
+      // Prediction slope extension (dashed)
+      if(data.length>=5){
+        const slope=computePrediction(data,'total').slope;
+        const lastVal=data[data.length-1];
+        ctx.beginPath();
+        const sx=lastX,sy=H-pad-(lastVal/(MAX_ZONE*4))*(H-pad*2);
+        ctx.moveTo(sx,sy);
+        for(let i=1;i<=10;i++){
+          const px2=Math.min(W-pad,sx+i*((W-pad*2)/MAX_HISTORY));
+          const py2=H-pad-((lastVal+slope*i)/(MAX_ZONE*4))*(H-pad*2);
+          ctx.lineTo(px2,Math.max(pad,Math.min(H-pad,py2)));
+        }
+        ctx.strokeStyle='#1de9b6';ctx.lineWidth=1.5;ctx.setLineDash([5,5]);ctx.stroke();ctx.setLineDash([]);
+      }
+      ctx.fillStyle='rgba(0,229,255,0.45)';ctx.font='8px JetBrains Mono,monospace';
+      ctx.fillText('← '+data.length+' ticks',pad,H-3);
+      ctx.textAlign='right';ctx.fillText('now',W-pad,H-3);ctx.textAlign='left';
+      ctx.fillText('━ Actual',pad,12);
+      ctx.fillStyle='rgba(29,233,182,0.6)';ctx.fillText('╌ Predicted',pad+70,12);
+    }
+  }
+}
