@@ -982,3 +982,19 @@ function sparkLine(data,W,H){
 function renderPredictionTab(){
   const pred=computePrediction(history.total,'total');
   renderPredictionBanner(pred);
+  const el=document.getElementById('predZoneBars'); if(!el) return;
+  el.innerHTML=ZONES.map(z=>{
+    const p2=computePrediction(history[z.key],z.key);
+    const col=p2.trend==='increasing'?'var(--danger)':p2.trend==='decreasing'?'var(--success)':'var(--accent)';
+    const pct=Math.min(100,Math.max(0,((currentData[z.key]||0)/MAX_ZONE*100)));
+    return `<div style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
+        <span style="font-family:var(--font-mono);font-size:.68rem;color:var(--muted)">${z.name} · ${z.sub}</span>
+        <span style="font-family:var(--font-mono);font-size:.68rem;color:${col}">${p2.label}</span>
+      </div>
+      <div style="height:4px;background:rgba(255,255,255,.07);border-radius:2px;overflow:hidden">
+        <div style="height:100%;width:${pct}%;background:${col};border-radius:2px;transition:width .6s ease"></div>
+      </div>
+      <div style="font-family:var(--font-mono);font-size:.6rem;color:var(--muted2);margin-top:3px">${currentData[z.key]||0} / ${MAX_ZONE} · slope ${p2.slope!=null?((p2.slope>=0?'+':'')+p2.slope.toFixed(1)):'-'}</div>
+    </div>`;
+  }).join('');
