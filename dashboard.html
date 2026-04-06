@@ -798,3 +798,33 @@ function processData(d){
 
 function statusOf(n){ if(n<THRESH_WARN) return 'low'; if(n<THRESH_CRIT) return 'medium'; return 'high'; }
 function statusColor(s){ return s==='low'?'var(--low)':s==='medium'?'var(--med)':'var(--high)'; }
+function renderStats(d,pred){
+  const total=d.total||0,occ=d.occupancy_pct||0;
+  document.getElementById('statTotal').textContent  = total;
+  document.getElementById('statOccPct').textContent = occ+'% of capacity';
+  const safety=Math.max(10,100-occ);
+  const safeEl=document.getElementById('statSafety');
+  safeEl.textContent=safety;
+  safeEl.style.color=safety>60?'var(--success)':safety>35?'var(--warn)':'var(--danger)';
+
+  const counts=ZONES.map(z=>d[z.key]||0);
+  const peakI=counts.indexOf(Math.max(...counts));
+  document.getElementById('statPeak').textContent    = ZONES[peakI].name;
+  document.getElementById('statPeakVal').textContent = counts[peakI]+' people';
+  const pCard=document.getElementById('statPeakCard');
+  const ps=statusOf(counts[peakI]);
+  pCard.style.borderColor=ps==='low'?'var(--border)':ps==='medium'?'rgba(255,152,0,.4)':'rgba(255,23,68,.4)';
+  if(ps!=='low') pCard.classList.add(ps==='medium'?'warn':'danger'); else pCard.className='stat-card';
+
+  document.getElementById('statFlow').textContent=(d.entry1||0)+(d.entry2||0);
+
+  const ac=alerts.filter(a=>!a.cleared).length;
+  document.getElementById('statAlerts').textContent=ac;
+  document.getElementById('statAlertCard').className='stat-card'+(ac>0?' danger':'');
+
+  const badge=document.getElementById('topAlertBadge');
+  const nav=document.getElementById('navAlertCount');
+  if(ac>0){ badge.style.display='flex';badge.textContent=ac;nav.style.display='inline';nav.textContent=ac; }
+  else{ badge.style.display='none';nav.style.display='none'; }
+  document.getElementById('alertTabCount').textContent=ac+' active alert'+(ac===1?'':'s');
+}
