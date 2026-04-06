@@ -759,3 +759,42 @@ function normalizeIncomingData(data){
     entry2: Number.isFinite(flat.entry2)?flat.entry2:0,
   };
 }
+function processData(d){
+  const now=new Date();
+  ZONES.forEach(z=>{
+    const v=d[z.key]||0;
+    history[z.key].push(v);
+    if(history[z.key].length>MAX_HISTORY) history[z.key].shift();
+    if(v>sessionMax[z.key]) sessionMax[z.key]=v;
+    sessionSums[z.key]+=v;
+    sessionCounts[z.key]++;
+  });
+  history.total.push(d.total||0);
+  if(history.total.length>MAX_HISTORY) history.total.shift();
+
+  checkAlerts(d,now);
+
+  const pred=computePrediction(history.total,'total');
+  reportLog.unshift({
+    time:now.toLocaleTimeString('en-GB',{hour12:false}),
+    z1:d.zone1||0,z2:d.zone2||0,z3:d.zone3||0,z4:d.zone4||0,
+    e1:d.entry1||0,e2:d.entry2||0,
+    total:d.total||0,occ:d.occupancy_pct||0,prediction:pred.label
+  });
+  if(reportLog.length>200) reportLog.pop();
+
+  renderStats(d,pred);
+  renderZoneGrid(d);
+  renderEntryGrid(d);
+  renderAlertList();
+  updateTrendChart();
+  renderZonesTab(d);
+  renderPredictionBanner(pred);
+  if(document.getElementById('t-heatmap').classList.contains('active')){ drawHeatmap(); updateBarChart(d); }
+  if(document.getElementById('t-monitor').classList.contains('active')) drawMonitor();
+  if(currentModalZone) updateModal(currentModalZone);
+  if(document.getElementById('t-prediction').classList.contains('active')) renderPredictionTab();
+}
+
+function statusOf(n){ if(n<THRESH_WARN) return 'low'; if(n<THRESH_CRIT) return 'medium'; return 'high'; }
+function statusColor(s){ return s==='low'?'var(--low)':s==='medium'?'var(--med)':'var(--high)'; }
