@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 
 public class DataCollector {
+    private volatile Snapshot lastSnapshot = null;
     private static final long DEDUP_WINDOW_MS    = 30_000;
     private static final long STALE_ZONE_RESET_MS = 60_000;
     private static final int  ZONE_CAPACITY       = 120;
@@ -110,6 +111,8 @@ public class DataCollector {
         totalHistory.add(total);
         if (totalHistory.size() > PRED_WINDOW * 4) {   // keep a modest buffer
             totalHistory.remove(0);
+            lastSnapshot = new Snapshot(z1c, z2c, z3c, z4c, g1, g2,
+        total, occupancyPct, projected2m, avgDelta, prediction, risk, now);
         }
 
         String prediction = computePrediction();

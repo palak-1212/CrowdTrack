@@ -21,6 +21,7 @@ public class MainSystem {
         server.createContext("/",              new FileHandler(DASH_FILE, "text/html"));
         server.setExecutor(null);
         server.start();
+        server.createContext("/suggestion.txt", new FileHandler("suggestion.txt", "text/plain"));
 
         System.out.println("============================================");
         System.out.println("CrowdTrack running (v2.5 — with Prediction)");
@@ -29,6 +30,9 @@ public class MainSystem {
         System.out.println("============================================");
 
         DataCollector collector = new DataCollector();
+        SuggestionEngine suggEngine = new SuggestionEngine(collector);
+        suggEngine.setDaemon(true);
+        suggEngine.start();
         NetworkSimulator network = new NetworkSimulator(collector);
 
         String[] nodeNames = {"Zone1", "Zone2", "Zone3", "Zone4", "Gate1", "Gate2"};
