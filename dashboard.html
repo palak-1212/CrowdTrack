@@ -1200,3 +1200,56 @@ function heatColor(pct){
   if(pct<0.5){ const t=pct*2; return `rgb(${Math.round(0+t*0)},${Math.round(188+t*(130-188))},${Math.round(212+t*(100-212))})`; }
   const t=(pct-.5)*2; return `rgb(${Math.round(0+t*255)},${Math.round(130+t*(23-130))},${Math.round(100+t*(68-100))})`;
 }
+function drawMonitor(){
+  const canvas=document.getElementById('monitorCanvas');
+  const wrap=canvas.parentElement;
+  canvas.width=wrap.clientWidth||700;
+  canvas.height=Math.max(300,wrap.clientHeight||300);
+  const W=canvas.width,H=canvas.height;
+  const ctx=canvas.getContext('2d');
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#0a1525';ctx.fillRect(0,0,W,H);
+
+  // Draw crowd density dots per zone
+  const zones=[
+    {key:'zone1',rx:.02,ry:.04,rw:.45,rh:.44},
+    {key:'zone2',rx:.53,ry:.04,rw:.45,rh:.44},
+    {key:'zone3',rx:.02,ry:.53,rw:.45,rh:.43},
+    {key:'zone4',rx:.53,ry:.53,rw:.45,rh:.43},
+  ];
+  zones.forEach(r=>{
+    const val=currentData[r.key]||0;
+    const pct=Math.min(1,val/MAX_ZONE);
+    const s=statusOf(val);
+    const col=s==='low'?'#00e5ff':s==='medium'?'#ff9800':'#ff1744';
+    const rx2=r.rx*W,ry2=r.ry*H,rw=r.rw*W,rh=r.rh*H;
+    // Zone background
+    ctx.fillStyle=`rgba(${s==='low'?'0,229,255':s==='medium'?'255,152,0':'255,23,68'},0.04)`;
+    ctx.beginPath();ctx.roundRect?ctx.roundRect(rx2,ry2,rw,rh,6):ctx.rect(rx2,ry2,rw,rh);ctx.fill();
+    ctx.strokeStyle=`rgba(${s==='low'?'0,229,255':s==='medium'?'255,152,0':'255,23,68'},0.3)`;
+    ctx.lineWidth=1;ctx.stroke();
+    // Crowd dots
+    const dotCount=Math.round(pct*80);
+    const rng=(seed,i)=>{const x=Math.sin(seed*997+i*373)*10000;return x-Math.floor(x);};
+    for(let i=0;i<dotCount;i++){
+      const dx=rx2+8+rng(val+r.rx,i*2)*(rw-16);
+      const dy=ry2+8+rng(val+r.ry,i*2+1)*(rh-16);
+      const alpha=0.4+rng(val,i)*0.5;
+      ctx.beginPath();ctx.arc(dx,dy,2,0,Math.PI*2);
+      ctx.fillStyle=col.replace(')',`,${alpha})`).replace('#','rgba('+parseInt(col.slice(1,3),16)+','+parseInt(col.slice(3,5),16)+','+parseInt(col.slice(5,7),16)+',').replace('rgba(','rgba(');
+      ctx.fillStyle=col+'bb';ctx.fill();
+    }
+    // Label
+    ctx.fillStyle='rgba(224,247,250,.85)';ctx.textAlign='center';
+    ctx.font=`bold ${Math.floor(rw*.07)}px Orbitron,monospace`;
+    const ZONE_NAMES={zone1:'Zone 1',zone2:'Zone 2',zone3:'Zone 3',zone4:'Zone 4'};
+    ctx.fillText(ZONE_NAMES[r.key],rx2+rw/2,ry2+20);
+    ctx.fillStyle=col;
+    ctx.font=`${Math.floor(rw*.055)}px JetBrains Mono,monospace`;
+    ctx.fillText(`${val} / ${MAX_ZONE}  (${Math.round(pct*100)}%)`,rx2+rw/2,ry2+rh-10);
+    ctx.textAlign='left';
+  });
+  // Labels
+  ctx.fillStyle='rgba(0,229,255,.5)';ctx.font='9px JetBrains Mono,monospace';ctx.textAlign='center';
+  ctx.fillText('⬆ GATE 1',W/2,H*.03);ctx.fillText('⬆ GATE 2',W/2,H*.515);ctx.textAlign='left';
+}
