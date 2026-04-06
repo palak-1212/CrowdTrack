@@ -1346,3 +1346,29 @@ function updateModal(zoneKey){
   openModal(zoneKey);
 }
 function closeModal(e){ if(e.target.id==='zoneModal') document.getElementById('zoneModal').classList.remove('open'); }
+function renderReport(){
+  const tbody=document.getElementById('reportBody');
+  tbody.innerHTML=reportLog.slice(0,50).map(r=>{
+    const predCol=r.prediction==='Crowd Increasing'?'var(--danger)':r.prediction==='Crowd Decreasing'?'var(--success)':'var(--accent)';
+    return `<tr>
+      <td>${r.time}</td>
+      <td>${r.z1}</td><td>${r.z2}</td><td>${r.z3}</td><td>${r.z4}</td>
+      <td>${r.e1}</td><td>${r.e2}</td>
+      <td style="color:var(--accent)">${r.total}</td>
+      <td>${r.occ}%</td>
+      <td style="color:${predCol};font-size:.7rem">${r.prediction||'—'}</td>
+    </tr>`;
+  }).join('');
+}
+function exportCSV(){
+  const hdr='Time,Zone1,Zone2,Zone3,Zone4,Gate1,Gate2,Total,Occ%,Prediction\n';
+  const rows=reportLog.map(r=>`${r.time},${r.z1},${r.z2},${r.z3},${r.z4},${r.e1},${r.e2},${r.total},${r.occ},${r.prediction||''}`).join('\n');
+  const blob=new Blob([hdr+rows],{type:'text/csv'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`crowdtrack_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+}
+</script>
+</body>
+</html>
