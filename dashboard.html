@@ -828,3 +828,44 @@ function renderStats(d,pred){
   else{ badge.style.display='none';nav.style.display='none'; }
   document.getElementById('alertTabCount').textContent=ac+' active alert'+(ac===1?'':'s');
 }
+function computePrediction(data, key){
+  const n=data.length;
+  if(n<5) return{trend:'stable',label:'Awaiting Data',slope:0,detail:'Collecting baseline…',confidence:0,peak:0};
+  const recent=data.slice(-10);
+  const diffs=recent.slice(1).map((v,i)=>v-recent[i]);
+  const slope=diffs.reduce((a,b)=>a+b,0)/diffs.length;
+  const avg5=(data.slice(-5).reduce((a,b)=>a+b,0)/5).toFixed(1);
+  const peak=Math.max(...data);
+  const confidence=Math.min(98,Math.round(50+n*0.8));
+  let trend='stable',label='Stable',detail='Crowd count holding steady';
+  if(slope>2){ trend='increasing';label='Crowd Increasing';detail=`Rising +${slope.toFixed(1)}/tick — monitor capacity`; }
+  else if(slope<-2){ trend='decreasing';label='Crowd Decreasing';detail=`Declining ${slope.toFixed(1)}/tick — dispersal in progress`; }
+  return{trend,label,slope,detail,confidence,peak,avg5,diffs};
+}
+
+function renderPredictionBanner(pred){
+  const update=(suffix)=>{
+    const icon=document.getElementById('predIcon'+suffix);
+    const status=document.getElementById('predStatus'+suffix);
+    const detail=document.getElementById('predDetail'+suffix);
+    const tDelta=document.getElementById('predTrendDelta'+suffix);
+    const avgCh=document.getElementById('predAvgChange'+suffix);
+    const peakF=document.getElementById('predPeakForecast'+suffix);
+    const conf=document.getElementById('predConfidence'+suffix);
+    const sampleC=document.getElementById('predSampleCount'+suffix);
+    if(!icon) return;
+    icon.className='prediction-icon '+pred.trend;
+    icon.textContent=pred.trend==='increasing'?'📈':pred.trend==='decreasing'?'📉':'📊';
+    status.className='prediction-status '+pred.trend;
+    status.textContent=pred.label;
+    detail.textContent=pred.detail;
+    tDelta.textContent=pred.slope!=null?(pred.slope>=0?'+':'')+pred.slope.toFixed(1)+'/tick':'—';
+    tDelta.style.color=pred.trend==='increasing'?'var(--danger)':pred.trend==='decreasing'?'var(--success)':'var(--accent)';
+    avgCh.textContent=pred.avg5||'—';
+    peakF.textContent=pred.peak||'—';
+    conf.textContent=pred.confidence?pred.confidence+'%':'—';
+    if(sampleC) sampleC.textContent=history.total.length+' samples';
+  };
+  update('');   // overview banner
+  update('2');  // prediction tab banner
+}
