@@ -380,3 +380,25 @@ canvas.line-chart{width:100%;height:100%;display:block}
     </header>
 
     <div class="page-body">
+        <div class="tab-page active" id="t-overview">
+        <!-- Prediction Banner -->
+        <div class="prediction-panel">
+          <div class="prediction-head">
+            <span class="panel-title">Crowd Prediction · Trend Analysis</span>
+            <span id="predSampleCount" style="font-size:.6rem;font-family:var(--font-mono);color:var(--muted2)">Awaiting data…</span>
+          </div>
+          <div class="prediction-body">
+            <div class="prediction-icon stable" id="predIcon">📊</div>
+            <div class="prediction-main">
+              <div class="prediction-label">Current Forecast</div>
+              <div class="prediction-status stable" id="predStatus">Awaiting Data</div>
+              <div class="prediction-detail" id="predDetail">Collecting baseline readings…</div>
+            </div>
+            <div class="prediction-indicators">
+              <div class="pred-indicator"><div class="pred-indicator-label">5-pt Trend</div><div class="pred-indicator-val" id="predTrendDelta">—</div></div>
+              <div class="pred-indicator"><div class="pred-indicator-label">Avg Change</div><div class="pred-indicator-val" id="predAvgChange">—</div></div>
+              <div class="pred-indicator"><div class="pred-indicator-label">Peak Forecast</div><div class="pred-indicator-val" id="predPeakForecast">—</div></div>
+              <div class="pred-indicator"><div class="pred-indicator-label">Confidence</div><div class="pred-indicator-val" id="predConfidence">—</div></div>
+            </div>
+          </div>
+        </div>
