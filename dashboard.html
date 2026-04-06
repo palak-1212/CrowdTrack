@@ -267,3 +267,43 @@ canvas.line-chart{width:100%;height:100%;display:block}
 </style>
 </head>
 <body>
+
+    <div id="bg"></div>
+<svg id="grid-svg" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <pattern id="sg" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(0,229,255,0.3)" stroke-width="0.4"/>
+    </pattern>
+    <pattern id="bg2" width="200" height="200" patternUnits="userSpaceOnUse">
+      <rect width="200" height="200" fill="url(#sg)"/>
+      <path d="M 200 0 L 0 0 0 200" fill="none" stroke="rgba(0,229,255,0.55)" stroke-width="0.7"/>
+    </pattern>
+  </defs>
+  <rect width="100%" height="100%" fill="url(#bg2)"/>
+</svg>
+<div id="scanline"></div>
+
+<!-- ══ LOGIN ══════════════════════════════════════════════════════ -->
+<div class="screen active" id="s-login">
+  <div class="login-grid"></div>
+  <div class="login-box">
+    <div class="login-badge">
+      <div class="login-badge-icon">CT</div>
+      <div class="login-badge-text">
+        <strong>CrowdTrack</strong>
+        Crowd Intelligence System · v3.0
+      </div>
+    </div>
+    <div class="login-divider"></div>
+    <div class="login-label">Operator ID</div>
+    <input class="login-input" id="loginUser" type="text" placeholder="e.g. OP-001" autocomplete="off"/>
+    <div class="login-label">Access Code</div>
+    <input class="login-input" id="loginPass" type="password" placeholder="••••••••"/>
+    <button class="login-btn" onclick="tryLogin()">AUTHENTICATE</button>
+    <div class="login-error" id="loginErr">⚠ Invalid credentials. Try admin / admin</div>
+    <div class="login-footer">
+      Authorised personnel only · Sessions are logged<br>
+      Default: <code style="color:var(--accent)">admin</code> / <code style="color:var(--accent)">admin</code>
+    </div>
+  </div>
+</div>
