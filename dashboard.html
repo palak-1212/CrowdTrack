@@ -553,3 +553,12 @@ canvas.line-chart{width:100%;height:100%;display:block}
           </div>
         </div>
       </div>
+      <div class="tab-page" id="t-alerts">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <div style="font-size:.74rem;font-family:var(--font-mono);color:var(--muted)" id="alertTabCount">0 active alerts</div>
+          <button class="alert-clear-btn" onclick="clearAlerts()">Clear All</button>
+        </div>
+        <div class="alert-full-list" id="alertFullList">
+          <div style="text-align:center;padding:40px;font-size:.78rem;font-family:var(--font-mono);color:var(--muted2)">No alerts recorded</div>
+        </div>
+      </div>
