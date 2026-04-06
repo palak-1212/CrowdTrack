@@ -584,3 +584,178 @@ canvas.line-chart{width:100%;height:100%;display:block}
   </div><!-- /main-content -->
 </div><!-- /app -->
 </div><!-- /s-main -->
+<div class="modal-overlay" id="zoneModal" onclick="closeModal(event)">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title" id="modalTitle">Zone Detail</div>
+      <button class="modal-close" onclick="document.getElementById('zoneModal').classList.remove('open')">
+        <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-stat-row">
+        <div class="modal-stat"><div class="modal-stat-val" id="mCount">—</div><div class="modal-stat-label">Current</div></div>
+        <div class="modal-stat"><div class="modal-stat-val" id="mMax">—</div><div class="modal-stat-label">Session Max</div></div>
+        <div class="modal-stat"><div class="modal-stat-val" id="mAvg">—</div><div class="modal-stat-label">Session Avg</div></div>
+      </div>
+      <div class="modal-history-label">History (last 30 readings)</div>
+      <div class="modal-chart-wrap"><canvas id="modalChart"></canvas></div>
+      <div style="margin-top:14px;font-size:.7rem;font-family:var(--font-mono);color:var(--muted2);line-height:1.9" id="modalMeta"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════════════════════════
+// CONFIG
+// ════════════════════════════════════════════════════════════════
+const DATA_FILE   = './data.txt';
+const REFRESH_MS  = 2000;
+const MAX_ZONE    = 120;
+const MAX_HISTORY = 60;
+const ZONES = [
+  {key:'zone1', name:'Zone 1', sub:'North Wing',  gate:'Gate 1'},
+  {key:'zone2', name:'Zone 2', sub:'Main Hall',   gate:'Gate 1'},
+  {key:'zone3', name:'Zone 3', sub:'South Wing',  gate:'Gate 2'},
+  {key:'zone4', name:'Zone 4', sub:'East Atrium', gate:'Gate 2'},
+];
+const GATES = [
+  {key:'entry1', name:'Gate 1'},
+  {key:'entry2', name:'Gate 2'},
+];
+const THRESH_WARN = 75;
+const THRESH_CRIT = 100;
+
+// ════════════════════════════════════════════════════════════════
+// STATE
+// ════════════════════════════════════════════════════════════════
+let history = {zone1:[],zone2:[],zone3:[],zone4:[],total:[]};
+let sessionMax    = {zone1:0,zone2:0,zone3:0,zone4:0};
+let sessionSums   = {zone1:0,zone2:0,zone3:0,zone4:0};
+let sessionCounts = {zone1:0,zone2:0,zone3:0,zone4:0};
+let alerts = [];
+let currentData = {};
+let reportLog = [];
+let trendCtx, barCtx, barCtx2, predCtx;
+let currentModalZone = null;
+
+// ════════════════════════════════════════════════════════════════
+// AUTH
+// ════════════════════════════════════════════════════════════════
+function tryLogin(){
+  const u = document.getElementById('loginUser').value.trim();
+  const p = document.getElementById('loginPass').value.trim();
+  if((u==='admin'&&p==='admin')||(u.toUpperCase().startsWith('OP')&&p.length>=4)){
+    const initials = u.replace(/[^a-zA-Z0-9]/g,'').slice(0,2).toUpperCase()||'OP';
+    document.getElementById('userAvatar').textContent = initials;
+    document.getElementById('userName').textContent   = u||'Operator';
+    goToMain();
+  } else {
+    document.getElementById('loginErr').style.display='block';
+  }
+}
+document.getElementById('loginPass').addEventListener('keydown',e=>{ if(e.key==='Enter') tryLogin(); });
+
+function goToMain(){
+  document.getElementById('s-login').classList.remove('active');
+  document.getElementById('s-main').classList.add('active');
+  initCharts();
+  tick();
+  setInterval(tick, REFRESH_MS);
+  setInterval(updateClock, 1000);
+  updateClock();
+}
+function logout(){
+  document.getElementById('s-main').classList.remove('active');
+  document.getElementById('s-login').classList.add('active');
+  document.getElementById('loginErr').style.display='none';
+}
+
+// ════════════════════════════════════════════════════════════════
+// NAV / TABS
+// ════════════════════════════════════════════════════════════════
+const TAB_TITLES = {
+  't-overview':'OVERVIEW','t-zones':'ZONES','t-monitor':'MONITOR',
+  't-heatmap':'HEATMAP','t-prediction':'PREDICTION',
+  't-alerts':'ALERTS','t-report':'REPORTS'
+};
+function showTab(id,el){
+  document.querySelectorAll('.tab-page').forEach(t=>t.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  document.querySelectorAll('.nav-link').forEach(n=>n.classList.remove('active'));
+  if(el) el.classList.add('active');
+  document.getElementById('topbarTitle').textContent = TAB_TITLES[id]||id;
+  if(id==='t-heatmap')    { drawHeatmap(); updateBarChart(currentData); }
+  if(id==='t-monitor')    { drawMonitor(); }
+  if(id==='t-report')     renderReport();
+  if(id==='t-prediction') renderPredictionTab();
+}
+function toggleSidebar(){ document.getElementById('sidebar').classList.toggle('open'); }
+function updateClock(){
+  document.getElementById('topbarTime').textContent =
+    new Date().toLocaleTimeString('en-GB',{hour12:false});
+}
+
+// ════════════════════════════════════════════════════════════════
+// DATA FETCH + SIMULATE
+// ════════════════════════════════════════════════════════════════
+async function tick(){
+  let d=null;
+  try{
+    const res=await fetch(DATA_FILE,{cache:'no-store'});
+    if(!res.ok) throw new Error('no file');
+    const txt=await res.text();
+    d=parseDataText(txt);
+    if(!d) throw new Error('bad format');
+  }catch(_){ d=simulateData(); }
+  const total=(d.zone1||0)+(d.zone2||0)+(d.zone3||0)+(d.zone4||0);
+  d.total=total;
+  d.occupancy_pct=Math.round(total/(MAX_ZONE*4)*100);
+  d.capacity=MAX_ZONE*4;
+  d.timestamp=Date.now();
+  currentData=d;
+  processData(d);
+}
+
+function simulateData(){
+  const prev=currentData;
+  const drift=k=>{
+    const old=prev[k]||40;
+    const max=k.startsWith('zone')?MAX_ZONE:40;
+    return Math.max(0,Math.min(max,old+Math.floor(Math.random()*11)-5));
+  };
+  const z1=drift('zone1'),z2=drift('zone2'),z3=drift('zone3'),z4=drift('zone4');
+  const e1=drift('entry1'),e2=drift('entry2');
+  const total=z1+z2+z3+z4;
+  return{zone1:z1,zone2:z2,zone3:z3,zone4:z4,entry1:e1,entry2:e2,total,
+    occupancy_pct:Math.round(total/(MAX_ZONE*4)*100),capacity:MAX_ZONE*4,timestamp:Date.now()};
+}
+
+function parseDataText(raw){
+  const clean=raw.trim(); if(!clean) return null;
+  try{ return normalizeIncomingData(JSON.parse(clean)); }catch(_){}
+  const out={};
+  clean.split(/\r?\n/).forEach(line=>{
+    const t=line.trim(); if(!t||t.startsWith('#')) return;
+    const m=t.match(/^([a-zA-Z0-9_]+)\s*[:=]\s*(-?\d+(?:\.\d+)?)$/);
+    if(m) out[m[1].toLowerCase()]=Number(m[2]);
+  });
+  return normalizeIncomingData(out);
+}
+function normalizeIncomingData(data){
+  if(!data||typeof data!=='object') return null;
+  const flat={};
+  Object.entries(data).forEach(([k,v])=>{
+    if(v&&typeof v==='object'&&!Array.isArray(v))
+      Object.entries(v).forEach(([sk,sv])=>flat[(k+sk).toLowerCase()]=Number(sv));
+    else flat[k.toLowerCase()]=Number(v);
+  });
+  return{
+    zone1:  Number.isFinite(flat.zone1)?flat.zone1:0,
+    zone2:  Number.isFinite(flat.zone2)?flat.zone2:0,
+    zone3:  Number.isFinite(flat.zone3)?flat.zone3:0,
+    zone4:  Number.isFinite(flat.zone4)?flat.zone4:0,
+    entry1: Number.isFinite(flat.entry1)?flat.entry1:0,
+    entry2: Number.isFinite(flat.entry2)?flat.entry2:0,
+  };
+}
