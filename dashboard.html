@@ -939,3 +939,43 @@ function renderAlertsTab(){
 }
 function clearAlert(idx){ alerts[idx].cleared=true; renderAlertList(); renderAlertsTab(); }
 function clearAlerts(){ alerts.forEach(a=>a.cleared=true); renderAlertList(); renderAlertsTab(); }
+function renderZonesTab(d){
+  const el=document.getElementById('zonesFullGrid');
+  el.innerHTML=ZONES.map(z=>{
+    const c=d[z.key]||0,s=statusOf(c),col=statusColor(s);
+    const hist=history[z.key];
+    const sparkPath=sparkLine(hist,280,80);
+    return `<div class="zone-full-card" onclick="openModal('${z.key}')">
+      <div class="zone-full-head">
+        <div>
+          <div class="zone-full-name">${z.name}</div>
+          <div class="zone-full-sub">${z.sub} · via ${z.gate}</div>
+        </div>
+        <div class="zone-pill ${s}"><span class="zone-pill-dot"></span>${s==='low'?'Clear':s==='medium'?'Busy':'Critical'}</div>
+      </div>
+      <div class="zone-full-chart-wrap">
+        <svg width="100%" height="80" viewBox="0 0 280 80" preserveAspectRatio="none">
+          <defs><linearGradient id="sg_${z.key}" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="${col}" stop-opacity="0.3"/>
+            <stop offset="100%" stop-color="${col}" stop-opacity="0"/>
+          </linearGradient></defs>
+          <path d="${sparkPath} L280,80 L0,80 Z" fill="url(#sg_${z.key})"/>
+          <path d="${sparkPath}" fill="none" stroke="${col}" stroke-width="1.5"/>
+        </svg>
+      </div>
+      <div class="zone-full-footer">
+        <div class="zone-full-count">Current: <span style="color:${col}">${c}</span> / ${MAX_ZONE}</div>
+        <div class="zone-full-count">Max: <span>${sessionMax[z.key]}</span></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function sparkLine(data,W,H){
+  if(!data.length) return `M0,${H}`;
+  return data.map((v,i)=>{
+    const x=(i/(Math.max(data.length-1,1)))*W;
+    const y=H-(v/MAX_ZONE)*H;
+    return `${i===0?'M':'L'}${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+}
