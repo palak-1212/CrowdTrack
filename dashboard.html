@@ -159,3 +159,19 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 .panel-title{font-size:.7rem;font-family:var(--font-mono);color:var(--muted);text-transform:uppercase;letter-spacing:.1em}
 .panel-badge{font-size:.6rem;font-family:var(--font-mono);padding:2px 8px;border-radius:2px;border:1px solid}
 .panel-body{padding:14px}
+
+.zone-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;align-items:stretch}
+.zone-card{background:rgba(0,229,255,.03);border:1px solid var(--border);border-radius:6px;padding:14px;cursor:pointer;display:flex;flex-direction:column;gap:6px;min-height:110px;transition:border-color .2s,transform .15s;position:relative;overflow:hidden}
+.zone-card::before{content:'';position:absolute;inset:0;background:var(--zone-color,var(--accent));opacity:0;transition:opacity .2s}
+.zone-card:hover{border-color:var(--border2);transform:translateY(-1px);box-shadow:0 4px 20px rgba(0,229,255,.06)}
+.zone-card:hover::before{opacity:.04}
+.zone-card-name{font-size:.6rem;font-family:var(--font-mono);color:var(--muted2);text-transform:uppercase;letter-spacing:.1em}
+.zone-card-count{font-family:var(--font-d);font-size:1.45rem;font-weight:700;line-height:1}
+.zone-card-sub{font-size:.62rem;color:var(--muted2);font-family:var(--font-mono)}
+.zone-card-bar{height:3px;border-radius:2px;background:rgba(255,255,255,.07);margin-top:4px}
+.zone-card-fill{height:100%;border-radius:2px;transition:width .6s ease}
+.zone-pill{display:inline-flex;align-items:center;gap:4px;font-size:.58rem;font-family:var(--font-mono);font-weight:600;text-transform:uppercase;letter-spacing:.08em;padding:3px 8px;border-radius:2px;margin-top:2px}
+.zone-pill.low{background:rgba(0,229,255,.1);color:var(--low);border:1px solid rgba(0,229,255,.18)}
+.zone-pill.medium{background:rgba(255,152,0,.1);color:var(--med);border:1px solid rgba(255,152,0,.18)}
+.zone-pill.high{background:rgba(255,23,68,.1);color:var(--high);border:1px solid rgba(255,23,68,.18)}
+.zone-pill-dot{width:4px;height:4px;border-radius:50%;background:currentColor}
