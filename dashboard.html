@@ -1253,3 +1253,41 @@ function drawMonitor(){
   ctx.fillStyle='rgba(0,229,255,.5)';ctx.font='9px JetBrains Mono,monospace';ctx.textAlign='center';
   ctx.fillText('⬆ GATE 1',W/2,H*.03);ctx.fillText('⬆ GATE 2',W/2,H*.515);ctx.textAlign='left';
 }
+const alertDebounce={};
+function checkAlerts(d,now){
+  const timeStr=now.toLocaleTimeString('en-GB',{hour12:false});
+  ZONES.forEach(z=>{
+    const v=d[z.key]||0,key=z.key;
+    if(v>=THRESH_CRIT){
+      if(!alertDebounce[key]||now-alertDebounce[key]>30000){
+        alertDebounce[key]=now;
+        addAlert('danger',`${z.name} CRITICAL — ${v} people (${Math.round(v/MAX_ZONE*100)}% capacity)`,timeStr,z.name);
+      }
+    } else if(v>=THRESH_WARN){
+      if(!alertDebounce[key+'w']||now-alertDebounce[key+'w']>60000){
+        alertDebounce[key+'w']=now;
+        addAlert('warn',`${z.name} busy — ${v} people, approaching limit`,timeStr,z.name);
+      }
+    }
+  });
+  GATES.forEach(g=>{
+    const v=d[g.key]||0;
+    if(v>45&&(!alertDebounce[g.key+'surge']||now-alertDebounce[g.key+'surge']>30000)){
+      alertDebounce[g.key+'surge']=now;
+      addAlert('warn',`${g.name} high flow — ${v} people/min`,timeStr,g.name);
+    }
+  });
+  const pred=computePrediction(history.total,'total');
+  if(pred.trend==='increasing'&&pred.slope>5){
+    if(!alertDebounce['pred_inc']||now-alertDebounce['pred_inc']>60000){
+      alertDebounce['pred_inc']=now;
+      addAlert('info',`Prediction: Crowd increasing rapidly (slope +${pred.slope.toFixed(1)}/tick)`,timeStr,'System');
+    }
+  }
+}
+function addAlert(level,msg,time,zone){
+  alerts.unshift({level,msg,time,zone,cleared:false});
+  if(alerts.length>50) alerts.pop();
+  renderAlertList();
+  renderAlertsTab();
+}
