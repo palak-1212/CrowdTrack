@@ -562,3 +562,25 @@ canvas.line-chart{width:100%;height:100%;display:block}
           <div style="text-align:center;padding:40px;font-size:.78rem;font-family:var(--font-mono);color:var(--muted2)">No alerts recorded</div>
         </div>
       </div>
+      <div class="tab-page" id="t-report">
+        <div class="panel" style="margin-bottom:16px">
+          <div class="panel-head">
+            <span class="panel-title">Snapshot Log</span>
+            <button class="alert-clear-btn" onclick="exportCSV()">Export CSV</button>
+          </div>
+          <div class="panel-body" style="padding:0;overflow-x:auto">
+            <table class="report-table" id="reportTable">
+              <thead><tr>
+                <th>Time</th><th>Zone 1</th><th>Zone 2</th><th>Zone 3</th><th>Zone 4</th>
+                <th>Gate 1</th><th>Gate 2</th><th>Total</th><th>Occ %</th><th>Prediction</th>
+              </tr></thead>
+              <tbody id="reportBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /page-body -->
+  </div><!-- /main-content -->
+</div><!-- /app -->
+</div><!-- /s-main -->
