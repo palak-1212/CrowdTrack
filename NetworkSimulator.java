@@ -1,4 +1,4 @@
-public class NetworkSimultor{
+public class NetworkSimulator {
     private final DataCollector collector;
 
     public NetworkSimulator(DataCollector collector) {
@@ -9,7 +9,3 @@ public class NetworkSimultor{
         collector.receiveData(node, value);
     }
 }
-    
-    
-
-
