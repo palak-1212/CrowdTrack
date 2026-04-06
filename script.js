@@ -92,8 +92,8 @@ function startApp() {
   setInterval(fetchSuggestions, 5000);
   fetchAlertFile();
   setInterval(fetchAlertFile, 3000);
+  setInterval(pollCameraCount, 1000); 
 }
-
 // ════════════════════════════════════════════════════════════
 // NAVIGATION
 // ════════════════════════════════════════════════════════════
@@ -104,8 +104,15 @@ const TAB_TITLES = {
   't-suggestions': 'Suggestions',
   't-alerts':      'Alerts & Incidents',
   't-report':      'Reports',
+  
+  't-overview':    'Overview & Predictions',
+  't-monitor':     'Monitor',
+  't-zones':       'Zones',
+  't-suggestions': 'Suggestions',
+  't-alerts':      'Alerts & Incidents',
+  't-camera':      'Live Camera',       // ← ADD THIS
+  't-report':      'Reports',
 };
-
 function showTab(id, el) {
   document.querySelectorAll('.tab-page').forEach(t => t.classList.remove('active'));
   document.getElementById(id).classList.add('active');
@@ -797,23 +804,135 @@ function renderAlertList() {
 // ════════════════════════════════════════════════════════════
 // SUGGESTION FILE READER
 // ════════════════════════════════════════════════════════════
-async function fetchSuggestions(manual=false) {
+     // ════════════════════════════════════════════════════════════
+// SUGGESTIONS — fixed multi-suggestion parser
+// ════════════════════════════════════════════════════════════
+async function fetchSuggestions(manual = false) {
   try {
-    const res = await fetch(SUGGESTION_FILE, { cache:'no-store' });
-    if (!res.ok) throw new Error('suggestion.txt unavailable');
+    const res = await fetch(SUGGESTION_FILE, { cache: 'no-store' });
+    if (!res.ok) throw new Error('not found');
     const txt = await res.text();
-    suggestionsData = parseSuggestions(txt);
-    renderSuggestions();
-    const now = new Date().toLocaleTimeString('en-GB',{hour12:false});
-    const el = document.getElementById('sugLastUpdate');
-    if (el) el.textContent = `Last updated: ${now}`;
-  } catch(_) {
-    // Use demo suggestions if file unavailable
-    if (!suggestionsData.length) {
-      suggestionsData = getDemoSuggestions();
-      renderSuggestions();
-    }
+    parseSuggestionFile(txt);
+  } catch (_) {
+    // file not available yet — leave existing display
   }
+  const el = document.getElementById('sugLastUpdate');
+  if (el) el.textContent = 'Last updated: ' + new Date().toLocaleTimeString('en-GB');
+}
+
+function parseSuggestionFile(raw) {
+  const lines = raw.split(/\r?\n/);
+
+  // ── Parse header fields (before ---) ──────────────────────
+  const meta = {};
+  let separatorIndex = lines.findIndex(l => l.trim() === '---');
+  if (separatorIndex === -1) separatorIndex = lines.length;
+
+  lines.slice(0, separatorIndex).forEach(line => {
+    const m = line.match(/^([a-zA-Z0-9_]+):(.+)$/);
+    if (m) meta[m[1].trim()] = m[2].trim();
+  });
+
+  const count = parseInt(meta['suggestion_count'] || '0', 10);
+
+  // ── Parse each suggestion block ───────────────────────────
+  const suggestions = [];
+  for (let i = 1; i <= count; i++) {
+    const prefix = `suggestion_${i}_`;
+    const sug = {};
+    lines.slice(separatorIndex + 1).forEach(line => {
+      if (line.startsWith(prefix)) {
+        const key = line.slice(prefix.length, line.indexOf(':'));
+        const val = line.slice(line.indexOf(':') + 1).trim();
+        sug[key] = val;
+      }
+    });
+    if (sug.title) suggestions.push(sug);
+  }
+
+  suggestionsData = suggestions.map(s => ({
+    priority : s.priority || 'LOW',
+    id       : s.id       || '',
+    title    : s.title    || 'Untitled',
+    detail   : s.detail   || '',
+    target   : s.target   || '',
+    // map priority → category pill
+    category : priorityToCategory(s.priority),
+    time     : new Date().toLocaleTimeString('en-GB'),
+  }));
+
+  renderSuggestions();
+}
+
+function priorityToCategory(priority) {
+  switch ((priority || '').toUpperCase()) {
+    case 'CRITICAL':
+    case 'HIGH':     return 'safety';
+    case 'MEDIUM':   return 'routing';
+    case 'LOW':      return 'info';
+    default:         return 'info';
+  }
+}
+
+function renderSuggestions() {
+  const list = document.getElementById('suggestionsList');
+  if (!list) return;
+
+  const filtered = sugFilter === 'all'
+    ? suggestionsData
+    : suggestionsData.filter(s => s.category === sugFilter);
+
+  if (!filtered.length) {
+    list.innerHTML = `<div class="sug-empty">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="40" height="40">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="8" x2="12" y2="12"/>
+        <line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+      <p>No suggestions in this category.</p>
+    </div>`;
+    return;
+  }
+
+  const priorityColors = {
+    CRITICAL : 'var(--danger)',
+    HIGH     : 'var(--warning, #f59e0b)',
+    MEDIUM   : 'var(--accent)',
+    LOW      : 'var(--success)',
+  };
+
+  const priorityIcons = {
+    safety  : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`,
+    routing : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><polyline points="9 18 15 12 9 6"/></svg>`,
+    info    : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`,
+    resources:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M12 22s-8-6-8-12a8 8 0 0 1 16 0c0 6-8 12-8 12z"/></svg>`,
+  };
+
+  list.innerHTML = filtered.map(s => {
+    const col   = priorityColors[s.priority.toUpperCase()] || 'var(--accent)';
+    const icon  = priorityIcons[s.category] || priorityIcons.info;
+    const badge = `<span class="panel-badge" style="border-color:${col};color:${col}">${s.priority} ALERT</span>`;
+    return `
+      <div class="sug-card">
+        <div class="sug-icon-wrap" style="color:${col}">${icon}</div>
+        <div class="sug-content">
+          <div class="sug-card-head">
+            <span class="sug-card-title">${s.title}</span>
+            ${badge}
+          </div>
+          <div class="sug-card-body">${s.detail}</div>
+          ${s.target ? `<div class="sug-card-meta">Target: <strong>${s.target}</strong></div>` : ''}
+          <div class="sug-card-meta">Received at ${s.time}</div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function filterSuggestions(cat, btn) {
+  sugFilter = cat;
+  document.querySelectorAll('.sug-pill').forEach(p => p.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  renderSuggestions();
 }
 
 function parseSuggestions(raw) {
@@ -1201,4 +1320,20 @@ function exportCSV() {
   a.href = URL.createObjectURL(blob);
   a.download = `crowdtrack_${new Date().toISOString().slice(0,10)}.csv`;
   a.click();
+// ════════════════════════════════════════════════════════════
+// LIVE CAMERA COUNT POLL
+// ════════════════════════════════════════════════════════════
+async function pollCameraCount() {
+  try {
+    const res = await fetch('http://127.0.0.1:5000/count', { cache: 'no-store' });
+    if (!res.ok) return;
+    const json = await res.json();
+    const el = document.getElementById('liveCamCount');
+    if (el && json.count !== undefined) el.textContent = json.count;
+  } catch (_) { /* server not running */ }
 }
+// Start polling when app boots — add to startApp():
+// setInterval(pollCameraCount, 1000);
+}
+
+
