@@ -1291,3 +1291,58 @@ function addAlert(level,msg,time,zone){
   renderAlertList();
   renderAlertsTab();
 }
+function openModal(zoneKey){
+  currentModalZone=zoneKey;
+  const z=ZONES.find(z=>z.key===zoneKey);
+  const v=currentData[zoneKey]||0;
+  const s=statusOf(v);
+  const avg=sessionCounts[zoneKey]>0?Math.round(sessionSums[zoneKey]/sessionCounts[zoneKey]):v;
+  const pred=computePrediction(history[zoneKey],zoneKey);
+
+  document.getElementById('modalTitle').textContent=`${z.name} — ${z.sub}`;
+  const mCount=document.getElementById('mCount');
+  mCount.textContent=v;mCount.style.color=statusColor(s);
+  document.getElementById('mMax').textContent=sessionMax[zoneKey];
+  document.getElementById('mAvg').textContent=avg;
+  document.getElementById('modalMeta').innerHTML=`
+    Gateway: ${z.gate} &nbsp;·&nbsp; Capacity: ${MAX_ZONE} &nbsp;·&nbsp;
+    Occupancy: ${Math.round(v/MAX_ZONE*100)}% &nbsp;·&nbsp;
+    Status: <span style="color:${statusColor(s)}">${s.toUpperCase()}</span>
+    &nbsp;·&nbsp; Prediction: <strong style="color:${pred.trend==='increasing'?'var(--danger)':pred.trend==='decreasing'?'var(--success)':'var(--accent)'}">${pred.label}</strong>`;
+
+  document.getElementById('zoneModal').classList.add('open');
+  drawModalChart(zoneKey);
+}
+function drawModalChart(zoneKey){
+  const canvas=document.getElementById('modalChart');
+  const W=canvas.offsetWidth||480,H=140;
+  canvas.width=W;canvas.height=H;
+  const ctx=canvas.getContext('2d');ctx.clearRect(0,0,W,H);
+  const data=history[zoneKey]; if(!data.length) return;
+  const s=statusOf(currentData[zoneKey]||0);
+  const col=s==='low'?'#00e5ff':s==='medium'?'#ff9800':'#ff1744';
+  const pad=10;
+  const grad=ctx.createLinearGradient(0,0,0,H);
+  grad.addColorStop(0,col+'55');grad.addColorStop(1,col+'00');
+  ctx.beginPath();
+  data.forEach((v,i)=>{
+    const x=pad+(i/(Math.max(data.length-1,1)))*(W-pad*2);
+    const y=H-pad-(v/MAX_ZONE)*(H-pad*2);
+    i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+  });
+  const lastX=pad+((data.length-1)/(Math.max(data.length-1,1)))*(W-pad*2);
+  ctx.lineTo(lastX,H-pad);ctx.lineTo(pad,H-pad);ctx.closePath();
+  ctx.fillStyle=grad;ctx.fill();
+  ctx.beginPath();
+  data.forEach((v,i)=>{
+    const x=pad+(i/(Math.max(data.length-1,1)))*(W-pad*2);
+    const y=H-pad-(v/MAX_ZONE)*(H-pad*2);
+    i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+  });
+  ctx.strokeStyle=col;ctx.lineWidth=2;ctx.shadowColor=col;ctx.shadowBlur=6;ctx.stroke();ctx.shadowBlur=0;
+}
+function updateModal(zoneKey){
+  if(!document.getElementById('zoneModal').classList.contains('open')) return;
+  openModal(zoneKey);
+}
+function closeModal(e){ if(e.target.id==='zoneModal') document.getElementById('zoneModal').classList.remove('open'); }
