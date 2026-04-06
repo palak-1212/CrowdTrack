@@ -10,6 +10,7 @@
 // ════════════════════════════════════════════════════════════
 const DATA_FILE       = 'data.txt';
 const SUGGESTION_FILE = 'suggestion.txt';
+const CAM_BASE_URL    = 'http://127.0.0.1:5000';
 const MAX_ZONE        = 120;
 const MAX_HISTORY     = 60;
 const PRED_WINDOW     = 5;
@@ -17,9 +18,9 @@ const THRESH_WARN     = Math.round(MAX_ZONE * 0.63);
 const THRESH_CRIT     = Math.round(MAX_ZONE * 0.84);
 
 const ZONES = [
-  { key:'zone1',  name:'Zone A', sub:'Main Stage',   gate:'Gate 1', col:'#3b82f6' },
-  { key:'zone2',  name:'Zone B', sub:'Food Court',   gate:'Gate 1', col:'#10b981' },
-  { key:'zone3',  name:'Zone C', sub:'Exhibition',   gate:'Gate 2', col:'#f59e0b' },
+  { key:'zone1',  name:'Zone A', sub:'Main Stage',    gate:'Gate 1', col:'#3b82f6' },
+  { key:'zone2',  name:'Zone B', sub:'Food Court',    gate:'Gate 1', col:'#10b981' },
+  { key:'zone3',  name:'Zone C', sub:'Exhibition',    gate:'Gate 2', col:'#f59e0b' },
   { key:'zone4',  name:'Zone D', sub:'Outdoor Arena', gate:'Gate 2', col:'#8b5cf6' },
 ];
 const GATES = [
@@ -38,12 +39,14 @@ let startTime     = Date.now();
 let alertDebounce = {};
 let currentModalZone = null;
 
-// Suggestions & Alerts state
-let suggestionsData   = [];
-let sugFilter         = 'all';
-let incidentsData     = [];      // read from data.txt alerts
-let alertFilter       = 'all';
-let currentSeverity   = 'green'; // green | yellow | red
+let suggestionsData = [];
+let sugFilter       = 'all';
+let incidentsData   = [];
+let alertFilter     = 'all';
+let currentSeverity = 'green';
+
+let liveCamPeak    = 0;
+let camOnline      = false;
 
 // ════════════════════════════════════════════════════════════
 // AUTH
@@ -64,6 +67,7 @@ function tryLogin() {
     document.getElementById('loginErr').style.display = 'block';
   }
 }
+
 function logout() {
   document.getElementById('s-main').classList.remove('active');
   document.getElementById('s-main').style.display = 'none';
@@ -71,7 +75,6 @@ function logout() {
   document.getElementById('loginErr').style.display = 'none';
 }
 
-// Enter key login
 document.addEventListener('DOMContentLoaded', () => {
   ['loginUser','loginPass'].forEach(id => {
     document.getElementById(id).addEventListener('keydown', e => {
@@ -92,8 +95,9 @@ function startApp() {
   setInterval(fetchSuggestions, 5000);
   fetchAlertFile();
   setInterval(fetchAlertFile, 3000);
-  setInterval(pollCameraCount, 1000); 
+  setInterval(pollCameraCount, 1500);
 }
+
 // ════════════════════════════════════════════════════════════
 // NAVIGATION
 // ════════════════════════════════════════════════════════════
@@ -103,21 +107,14 @@ const TAB_TITLES = {
   't-zones':       'Zones',
   't-suggestions': 'Suggestions',
   't-alerts':      'Alerts & Incidents',
-  't-report':      'Reports',
-  
-  't-overview':    'Overview & Predictions',
-  't-monitor':     'Monitor',
-  't-zones':       'Zones',
-  't-suggestions': 'Suggestions',
-  't-alerts':      'Alerts & Incidents',
-  't-camera':      'Live Camera',       // ← ADD THIS
+  't-camera':      'Live Camera',
   't-report':      'Reports',
 };
+
 function showTab(id, el) {
   document.querySelectorAll('.tab-page').forEach(t => t.classList.remove('active'));
   document.getElementById(id).classList.add('active');
   document.querySelectorAll('.nav-link').forEach(n => n.classList.remove('active'));
-  // Restore alert nav special coloring after re-activating
   if (el) {
     el.classList.add('active');
     if (el.id === 'nav-alerts') applyAlertTabColor();
@@ -136,6 +133,7 @@ function showTab(id, el) {
 function toggleSidebar() {
   document.getElementById('sidebar').classList.toggle('open');
 }
+
 function updateClock() {
   document.getElementById('topbarTime').textContent =
     new Date().toLocaleTimeString('en-GB', { hour12: false });
@@ -170,9 +168,12 @@ function simulateData() {
     return Math.max(0, Math.min(max, old + Math.floor(Math.random() * 11) - 5));
   };
   return {
-    zone1: drift('zone1', MAX_ZONE), zone2: drift('zone2', MAX_ZONE),
-    zone3: drift('zone3', MAX_ZONE), zone4: drift('zone4', MAX_ZONE),
-    entry1: drift('entry1', 60),    entry2: drift('entry2', 60),
+    zone1:  drift('zone1',  MAX_ZONE),
+    zone2:  drift('zone2',  MAX_ZONE),
+    zone3:  drift('zone3',  MAX_ZONE),
+    zone4:  drift('zone4',  MAX_ZONE),
+    entry1: drift('entry1', 60),
+    entry2: drift('entry2', 60),
   };
 }
 
@@ -212,7 +213,6 @@ function normalizeIncomingData(data) {
 // PROCESS DATA → UPDATE UI
 // ════════════════════════════════════════════════════════════
 function processData(d) {
-  // History
   ZONES.forEach(z => {
     history[z.key].push(d[z.key] || 0);
     if (history[z.key].length > MAX_HISTORY) history[z.key].shift();
@@ -228,7 +228,6 @@ function processData(d) {
   history.total.push(d.total || 0);
   if (history.total.length > MAX_HISTORY) history.total.shift();
 
-  // Report log
   const pred = computePrediction(history.total, 'total');
   reportLog.unshift({
     time: new Date().toLocaleTimeString('en-GB', { hour12: false }),
@@ -246,7 +245,6 @@ function processData(d) {
   drawTrendChart();
   checkInternalAlerts(d, new Date());
 
-  // Monitor tab if visible
   const monitorActive = document.getElementById('t-monitor').classList.contains('active');
   if (monitorActive) {
     drawRYGDensity();
@@ -269,52 +267,50 @@ function statusOf(v) {
 function updateStats(d) {
   const total = d.total || 0;
   const occ   = d.occupancy_pct || 0;
-  document.getElementById('statTotal').textContent   = total;
-  document.getElementById('statOccPct').textContent  = `${occ}% of capacity`;
+  setEl('statTotal',  total);
+  setEl('statOccPct', `${occ}% of capacity`);
 
   let peakZone = ZONES[0], peakVal = 0;
   ZONES.forEach(z => { if ((d[z.key]||0) > peakVal) { peakVal = d[z.key]; peakZone = z; } });
   const ps = statusOf(peakVal);
-  document.getElementById('statPeak').textContent    = peakZone.name;
-  document.getElementById('statPeakVal').textContent = `${peakVal} people`;
+  setEl('statPeak',    peakZone.name);
+  setEl('statPeakVal', `${peakVal} people`);
   const pc = document.getElementById('statPeakCard');
-  pc.className = `stat-card ${ps==='high'?'danger':ps==='medium'?'warn':''}`;
+  if (pc) pc.className = `stat-card ${ps==='high'?'danger':ps==='medium'?'warn':''}`;
 
-  document.getElementById('statGate1').textContent   = d.entry1 || 0;
-  document.getElementById('statGate2').textContent   = d.entry2 || 0;
+  setEl('statGate1', d.entry1 || 0);
+  setEl('statGate2', d.entry2 || 0);
 
   const activeAlerts = alerts.filter(a => !a.cleared).length;
-  document.getElementById('statAlerts').textContent  = activeAlerts;
+  setEl('statAlerts', activeAlerts);
   const ac = document.getElementById('statAlertCard');
-  ac.className = `stat-card${activeAlerts>0?' danger':''}`;
+  if (ac) ac.className = `stat-card${activeAlerts > 0 ? ' danger' : ''}`;
 
-  // Metrics
-  const totalSessions = Object.values(sessionCounts).reduce((a,b)=>a+b, 0);
-  const totalSums     = Object.values(sessionSums).reduce((a,b)=>a+b, 0);
+  const totalSessions = Object.values(sessionCounts).reduce((a,b) => a+b, 0);
+  const totalSums     = Object.values(sessionSums).reduce((a,b) => a+b, 0);
   const sessAvg = totalSessions > 0 ? Math.round(totalSums / totalSessions) : 0;
-  const sessMax = Object.values(sessionMax).reduce((a,b)=>a+b, 0);
-  document.getElementById('metricSessionAvg').textContent = sessAvg;
-  document.getElementById('metricSessionMax').textContent = sessMax;
+  const sessMax = Object.values(sessionMax).reduce((a,b) => a+b, 0);
+  setEl('metricSessionAvg', sessAvg);
+  setEl('metricSessionMax', sessMax);
   const uptime = Math.floor((Date.now() - startTime) / 1000);
   const mm = String(Math.floor(uptime/60)).padStart(2,'0');
   const ss = String(uptime % 60).padStart(2,'0');
-  document.getElementById('metricUptime').textContent    = `${mm}:${ss}`;
-  document.getElementById('metricDataPts').textContent   = history.total.length;
+  setEl('metricUptime',  `${mm}:${ss}`);
+  setEl('metricDataPts', history.total.length);
 
-  // Alert badge
-  const badge = document.getElementById('topAlertBadge');
+  const badge    = document.getElementById('topAlertBadge');
   const navBadge = document.getElementById('navAlertCount');
   if (activeAlerts > 0) {
-    badge.style.display = 'flex'; badge.textContent = activeAlerts;
-    navBadge.style.display = 'inline'; navBadge.textContent = activeAlerts;
+    if (badge)    { badge.style.display = 'flex'; badge.textContent = activeAlerts; }
+    if (navBadge) { navBadge.style.display = 'inline'; navBadge.textContent = activeAlerts; }
   } else {
-    badge.style.display = 'none';
-    navBadge.style.display = 'none';
+    if (badge)    badge.style.display = 'none';
+    if (navBadge) navBadge.style.display = 'none';
   }
 }
 
 // ════════════════════════════════════════════════════════════
-// ZONE GRID (overview)
+// ZONE GRID
 // ════════════════════════════════════════════════════════════
 function renderZoneGrid(d) {
   const grid = document.getElementById('zoneGrid');
@@ -325,8 +321,8 @@ function renderZoneGrid(d) {
     const pct = Math.round(v / MAX_ZONE * 100);
     const s   = statusOf(v);
     const col = s==='high'?'var(--high)':s==='medium'?'var(--med)':'var(--low)';
-    if (s==='high') anyHigh = true;
-    if (s==='medium') anyMed = true;
+    if (s==='high')   anyHigh = true;
+    if (s==='medium') anyMed  = true;
     return `<div class="zone-card" onclick="openModal('${z.key}')">
       <div style="display:flex;justify-content:space-between;align-items:center">
         <div>
@@ -345,9 +341,11 @@ function renderZoneGrid(d) {
     </div>`;
   }).join('');
   const badge = document.getElementById('overviewZoneBadge');
-  if (anyHigh)       { badge.textContent='CRITICAL'; badge.style.cssText='border-color:var(--danger);color:var(--danger)'; }
-  else if (anyMed)   { badge.textContent='CAUTION';  badge.style.cssText='border-color:var(--warn);color:var(--warn)'; }
-  else               { badge.textContent='ALL CLEAR'; badge.style.cssText='border-color:var(--accent);color:var(--accent)'; }
+  if (badge) {
+    if (anyHigh)     { badge.textContent='CRITICAL'; badge.style.cssText='border-color:var(--danger);color:var(--danger)'; }
+    else if (anyMed) { badge.textContent='CAUTION';  badge.style.cssText='border-color:var(--warn);color:var(--warn)'; }
+    else             { badge.textContent='ALL CLEAR'; badge.style.cssText='border-color:var(--accent);color:var(--accent)'; }
+  }
 }
 
 // ════════════════════════════════════════════════════════════
@@ -430,30 +428,27 @@ function renderPrediction(d) {
   const predDetail = document.getElementById('predDetail');
   const predSample = document.getElementById('predSampleCount');
 
-  // Update SVG icon color
   const tClass = pred.trend === 'awaiting' ? 'stable' : pred.trend;
-  iconWrap.className = `prediction-icon-wrap ${tClass}`;
-  predStatus.className = `prediction-status ${tClass}`;
-  predStatus.textContent = pred.label;
-  predSample.textContent = `${history.total.length} / ${MAX_HISTORY} samples`;
+  if (iconWrap)   iconWrap.className = `prediction-icon-wrap ${tClass}`;
+  if (predStatus) { predStatus.className = `prediction-status ${tClass}`; predStatus.textContent = pred.label; }
+  if (predSample) predSample.textContent = `${history.total.length} / ${MAX_HISTORY} samples`;
 
   if (pred.slope !== null) {
-    const cur       = history.total[history.total.length-1] || 0;
-    const proj2m    = Math.max(0, Math.round(cur + pred.slope * 60));
-    const capacity  = MAX_ZONE * 4;
-    const riskPct   = Math.min(100, Math.round(proj2m / capacity * 100));
-    const risk      = riskPct > 80 ? 'HIGH' : riskPct > 55 ? 'MEDIUM' : 'LOW';
-    predDetail.textContent = `Slope: ${pred.slope>0?'+':''}${pred.slope.toFixed(1)} ppl/tick · Avg Δ: ${pred.avgDelta>0?'+':''}${pred.avgDelta.toFixed(1)} · Window: last ${PRED_WINDOW} readings`;
-    setEl('predTrendDelta',  (pred.delta>0?'+':'')+pred.delta);
-    setEl('predAvgChange',   (pred.avgDelta>0?'+':'')+pred.avgDelta.toFixed(1));
+    const cur      = history.total[history.total.length-1] || 0;
+    const proj2m   = Math.max(0, Math.round(cur + pred.slope * 60));
+    const capacity = MAX_ZONE * 4;
+    const riskPct  = Math.min(100, Math.round(proj2m / capacity * 100));
+    const risk     = riskPct > 80 ? 'HIGH' : riskPct > 55 ? 'MEDIUM' : 'LOW';
+    if (predDetail) predDetail.textContent = `Slope: ${pred.slope>0?'+':''}${pred.slope.toFixed(1)} ppl/tick · Avg Δ: ${pred.avgDelta>0?'+':''}${pred.avgDelta.toFixed(1)} · Window: last ${PRED_WINDOW} readings`;
+    setEl('predTrendDelta',   (pred.delta>0?'+':'')+pred.delta);
+    setEl('predAvgChange',    (pred.avgDelta>0?'+':'')+pred.avgDelta.toFixed(1));
     setEl('predPeakForecast', proj2m);
-    setEl('predConfidence',  history.total.length >= MAX_HISTORY ? 'HIGH' : history.total.length >= 20 ? 'MED' : 'LOW');
+    setEl('predConfidence',   history.total.length >= MAX_HISTORY ? 'HIGH' : history.total.length >= 20 ? 'MED' : 'LOW');
   } else {
     ['predTrendDelta','predAvgChange','predPeakForecast','predConfidence'].forEach(id => setEl(id,'—'));
-    predDetail.textContent = 'Collecting baseline readings…';
+    if (predDetail) predDetail.textContent = 'Collecting baseline readings…';
   }
 
-  // Per-zone predictions grid
   const zpGrid = document.getElementById('zonePredGrid');
   if (zpGrid) {
     zpGrid.innerHTML = ZONES.map(z => {
@@ -508,9 +503,7 @@ function drawTrendChart() {
   const allVals = Object.values(history).flat();
   const maxV    = Math.max(...allVals, 10);
 
-  // Grid
-  ctx.strokeStyle = 'rgba(36,50,74,0.6)';
-  ctx.lineWidth   = 1;
+  ctx.strokeStyle = 'rgba(36,50,74,0.6)'; ctx.lineWidth = 1;
   [0,.25,.5,.75,1].forEach(t => {
     const y = pad.t + gH * (1-t);
     ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(pad.l+gW, y); ctx.stroke();
@@ -534,7 +527,6 @@ function drawTrendChart() {
     ctx.restore();
   });
 
-  // X labels
   ctx.fillStyle = '#7f95b6'; ctx.font = '8px IBM Plex Mono';
   ctx.fillText(`← ${MAX_HISTORY} ticks ago`, pad.l, H-4);
   ctx.textAlign = 'right';
@@ -542,7 +534,6 @@ function drawTrendChart() {
   ctx.textAlign = 'left';
 }
 
-// Bar chart
 function updateBarChart(d) {
   const canvas = document.getElementById('barChart');
   if (!canvas) return;
@@ -551,8 +542,7 @@ function updateBarChart(d) {
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0,0,W,H);
   const pad = { t:20, b:30, l:36, r:10 };
-  const gW  = W - pad.l - pad.r;
-  const gH  = H - pad.t - pad.b;
+  const gW  = W - pad.l - pad.r; const gH = H - pad.t - pad.b;
   const barW = gW / (ZONES.length * 1.6);
   const gap  = (gW - barW * ZONES.length) / (ZONES.length + 1);
 
@@ -567,11 +557,9 @@ function updateBarChart(d) {
     const v   = d[z.key] || 0;
     const pct = v / MAX_ZONE;
     const x   = pad.l + gap*(i+1) + barW*i;
-    const bH  = gH * pct;
-    const y   = pad.t + gH - bH;
+    const bH  = gH * pct; const y = pad.t + gH - bH;
     const grad = ctx.createLinearGradient(0,y,0,y+bH);
-    grad.addColorStop(0, z.col+'cc');
-    grad.addColorStop(1, z.col+'44');
+    grad.addColorStop(0, z.col+'cc'); grad.addColorStop(1, z.col+'44');
     ctx.fillStyle = grad;
     ctx.beginPath(); ctx.roundRect(x,y,barW,bH,2); ctx.fill();
     ctx.fillStyle='#e6edf7'; ctx.font='bold 9px IBM Plex Mono'; ctx.textAlign='center';
@@ -591,9 +579,8 @@ function updateGateBarChart(d) {
   ctx.clearRect(0,0,W,H);
   const pad = { t:20, b:30, l:36, r:10 };
   const gW  = W-pad.l-pad.r; const gH=H-pad.t-pad.b;
-  const maxFlow=60;
-  const barW = gW/(GATES.length*1.6);
-  const gap  = (gW-barW*GATES.length)/(GATES.length+1);
+  const maxFlow=60; const barW=gW/(GATES.length*1.6);
+  const gap=(gW-barW*GATES.length)/(GATES.length+1);
 
   ctx.strokeStyle='rgba(36,50,74,0.5)'; ctx.lineWidth=1;
   [0,.5,1].forEach(t => {
@@ -603,15 +590,13 @@ function updateGateBarChart(d) {
   });
 
   GATES.forEach((g,i) => {
-    const v  = d[g.key]||0;
-    const pct= v/maxFlow;
-    const x  = pad.l+gap*(i+1)+barW*i;
-    const bH = gH*pct; const y=pad.t+gH-bH;
-    const col= v>45?'#ef4444':v>25?'#f59e0b':'#10b981';
+    const v=d[g.key]||0; const pct=v/maxFlow;
+    const x=pad.l+gap*(i+1)+barW*i;
+    const bH=gH*pct; const y=pad.t+gH-bH;
+    const col=v>45?'#ef4444':v>25?'#f59e0b':'#10b981';
     const grad=ctx.createLinearGradient(0,y,0,y+bH);
     grad.addColorStop(0,col+'cc'); grad.addColorStop(1,col+'44');
-    ctx.fillStyle=grad;
-    ctx.beginPath();ctx.roundRect(x,y,barW,bH,2);ctx.fill();
+    ctx.fillStyle=grad; ctx.beginPath();ctx.roundRect(x,y,barW,bH,2);ctx.fill();
     ctx.fillStyle='#e6edf7';ctx.font='bold 9px IBM Plex Mono';ctx.textAlign='center';
     ctx.fillText(v,x+barW/2,y-4);
     ctx.fillStyle='#7f95b6';ctx.font='9px IBM Plex Mono';
@@ -628,9 +613,7 @@ function drawRYGDensity() {
   canvas.width = W; canvas.height = H;
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0,0,W,H);
-  const n    = MAX_HISTORY;
-  const colW = W / n;
-  const rowH = H / ZONES.length;
+  const n = MAX_HISTORY; const colW = W/n; const rowH = H/ZONES.length;
 
   ZONES.forEach((z, zi) => {
     const data = history[z.key];
@@ -656,12 +639,9 @@ function drawHeatmap() {
   canvas.width = W; canvas.height = H;
   const ctx = canvas.getContext('2d');
   ctx.fillStyle = '#0d1829'; ctx.fillRect(0,0,W,H);
-
-  // Draw venue outline
   ctx.strokeStyle='rgba(49,65,94,0.7)'; ctx.lineWidth=1;
   ctx.strokeRect(30,30,W-60,H-60);
 
-  // Each zone is a quadrant
   const zones = [
     { key:'zone1', x:30, y:30, w:(W-60)/2, h:(H-60)/2 },
     { key:'zone2', x:30+(W-60)/2, y:30, w:(W-60)/2, h:(H-60)/2 },
@@ -674,24 +654,19 @@ function drawHeatmap() {
     const v = currentData[z.key] || 0;
     const t = v / MAX_ZONE;
     const r = Math.min(255, Math.round(t * 255 * 1.5));
-    const g = Math.max(0,   Math.round((1-t) * 200));
-    const alpha = 0.25 + t * 0.55;
-    ctx.fillStyle = `rgba(${r},${g},40,${alpha})`;
+    const g = Math.max(0, Math.round((1-t) * 200));
+    ctx.fillStyle = `rgba(${r},${g},40,${0.25 + t * 0.55})`;
     ctx.fillRect(z.x+2, z.y+2, z.w-4, z.h-4);
-    // Label
-    ctx.fillStyle='rgba(230,237,247,0.8)'; ctx.font='bold 11px IBM Plex Mono';
-    ctx.textAlign='center';
+    ctx.fillStyle='rgba(230,237,247,0.8)'; ctx.font='bold 11px IBM Plex Mono'; ctx.textAlign='center';
     ctx.fillText(zinfo[z.key].name, z.x+z.w/2, z.y+z.h/2-6);
     ctx.font='9px IBM Plex Mono'; ctx.fillStyle='rgba(159,179,209,0.8)';
     ctx.fillText(`${v} / ${MAX_ZONE}`, z.x+z.w/2, z.y+z.h/2+10);
     ctx.textAlign='left';
-    // Border
     const s = statusOf(v);
     ctx.strokeStyle = s==='high'?'rgba(239,68,68,0.5)':s==='medium'?'rgba(245,158,11,0.4)':'rgba(16,185,129,0.2)';
     ctx.lineWidth=1; ctx.strokeRect(z.x+2,z.y+2,z.w-4,z.h-4);
   });
 
-  // Gate labels
   ctx.fillStyle='rgba(127,149,182,0.6)'; ctx.font='8px IBM Plex Mono'; ctx.textAlign='center';
   ctx.fillText('GATE 1', W/4, H-12);
   ctx.fillText('GATE 2', 3*W/4, H-12);
@@ -707,7 +682,6 @@ function drawCameras() {
     const ctx = canvas.getContext('2d');
     ctx.fillStyle = '#0a1220'; ctx.fillRect(0,0,W,H);
 
-    // Simulated people dots
     const zones = si===0 ? ['zone1','zone2'] : ['zone3','zone4'];
     const total = zones.reduce((a,k) => a + (currentData[k]||0), 0);
     const count = Math.min(total, 80);
@@ -719,17 +693,15 @@ function drawCameras() {
       const x  = 20 + rx*(W-40);
       const y  = 20 + ry*(H-40);
       const r  = 3 + Math.random()*2;
-      const t  = (currentData[zones[0]]||0) / MAX_ZONE;
-      const col = t > 0.84 ? '#ef4444' : t > 0.63 ? '#f59e0b' : '#06b6d4';
-      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2);
+      const t2 = (currentData[zones[0]]||0) / MAX_ZONE;
+      const col = t2 > 0.84 ? '#ef4444' : t2 > 0.63 ? '#f59e0b' : '#06b6d4';
+      ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2);
       ctx.fillStyle = col+'aa'; ctx.fill();
     }
 
-    // Scanline overlay
     ctx.fillStyle='rgba(0,0,0,0.04)';
     for (let y=0; y<H; y+=3) ctx.fillRect(0,y,W,1);
 
-    // Corner brackets (camera frame)
     ctx.strokeStyle='rgba(6,182,212,0.3)'; ctx.lineWidth=1;
     const br=14;
     [[0,0],[W,0],[0,H],[W,H]].forEach(([cx,cy]) => {
@@ -739,14 +711,84 @@ function drawCameras() {
       ctx.stroke();
     });
 
-    // Count overlay update
     const cntEl = document.getElementById(`camCount${suffix}`);
     if (cntEl) cntEl.textContent = total;
   });
 }
 
 // ════════════════════════════════════════════════════════════
-// INTERNAL ALERTS (from live sensor data)
+// LIVE CAMERA TAB — Python backend integration
+// ════════════════════════════════════════════════════════════
+async function pollCameraCount() {
+  try {
+    const res = await fetch(`${CAM_BASE_URL}/count`, { cache:'no-store' });
+    if (!res.ok) throw new Error('offline');
+    const json = await res.json();
+    const count = json.count ?? 0;
+
+    // Update count display
+    setEl('liveCamCount', count);
+    setEl('liveCamTime',  new Date().toLocaleTimeString('en-GB', { hour12:false }));
+
+    // Session peak
+    if (count > liveCamPeak) {
+      liveCamPeak = count;
+      setEl('liveCamPeak', liveCamPeak);
+    }
+
+    // Mark online
+    if (!camOnline) {
+      camOnline = true;
+      setCamStatus(true);
+    }
+  } catch(_) {
+    if (camOnline) {
+      camOnline = false;
+      setCamStatus(false);
+    }
+  }
+}
+
+function setCamStatus(online) {
+  const dot  = document.getElementById('camStatusDot');
+  const text = document.getElementById('camStatusText');
+  const badge = document.getElementById('camFeedBadge');
+  const img   = document.getElementById('liveCamFeed');
+  const offline = document.getElementById('camOfflineMsg');
+
+  if (online) {
+    if (dot)  { dot.className = 'cam-status-dot online'; }
+    if (text) text.textContent = 'Online';
+    if (badge) { badge.style.borderColor='var(--success)'; badge.style.color='var(--success)'; badge.textContent='LIVE'; }
+    if (img)  img.style.display = 'block';
+    if (offline) offline.style.display = 'none';
+  } else {
+    if (dot)  { dot.className = 'cam-status-dot offline'; }
+    if (text) text.textContent = 'Offline';
+    if (badge) { badge.style.borderColor='var(--danger)'; badge.style.color='var(--danger)'; badge.textContent='OFFLINE'; }
+    if (img)  img.style.display = 'none';
+    if (offline) offline.style.display = 'flex';
+    setEl('liveCamCount', '—');
+  }
+}
+
+function handleCamError() {
+  camOnline = false;
+  setCamStatus(false);
+}
+
+function retryCam() {
+  const img = document.getElementById('liveCamFeed');
+  if (img) {
+    img.style.display = 'block';
+    img.src = `${CAM_BASE_URL}/video?t=${Date.now()}`;
+  }
+  const offline = document.getElementById('camOfflineMsg');
+  if (offline) offline.style.display = 'none';
+}
+
+// ════════════════════════════════════════════════════════════
+// INTERNAL ALERTS
 // ════════════════════════════════════════════════════════════
 function checkInternalAlerts(d, now) {
   const timeStr = now.toLocaleTimeString('en-GB', { hour12:false });
@@ -802,209 +844,90 @@ function renderAlertList() {
 }
 
 // ════════════════════════════════════════════════════════════
-// SUGGESTION FILE READER
+// SUGGESTION FILE READER — parses SuggestionEngine.java output
 // ════════════════════════════════════════════════════════════
-     // ════════════════════════════════════════════════════════════
-// SUGGESTIONS — fixed multi-suggestion parser
-// ════════════════════════════════════════════════════════════
-async function fetchSuggestions(manual = false) {
+async function fetchSuggestions(manual=false) {
   try {
-    const res = await fetch(SUGGESTION_FILE, { cache: 'no-store' });
-    if (!res.ok) throw new Error('not found');
+    const res = await fetch(SUGGESTION_FILE, { cache:'no-store' });
+    if (!res.ok) throw new Error('suggestion.txt unavailable');
     const txt = await res.text();
-    parseSuggestionFile(txt);
-  } catch (_) {
-    // file not available yet — leave existing display
-  }
-  const el = document.getElementById('sugLastUpdate');
-  if (el) el.textContent = 'Last updated: ' + new Date().toLocaleTimeString('en-GB');
-}
-
-function parseSuggestionFile(raw) {
-  const lines = raw.split(/\r?\n/);
-
-  // ── Parse header fields (before ---) ──────────────────────
-  const meta = {};
-  let separatorIndex = lines.findIndex(l => l.trim() === '---');
-  if (separatorIndex === -1) separatorIndex = lines.length;
-
-  lines.slice(0, separatorIndex).forEach(line => {
-    const m = line.match(/^([a-zA-Z0-9_]+):(.+)$/);
-    if (m) meta[m[1].trim()] = m[2].trim();
-  });
-
-  const count = parseInt(meta['suggestion_count'] || '0', 10);
-
-  // ── Parse each suggestion block ───────────────────────────
-  const suggestions = [];
-  for (let i = 1; i <= count; i++) {
-    const prefix = `suggestion_${i}_`;
-    const sug = {};
-    lines.slice(separatorIndex + 1).forEach(line => {
-      if (line.startsWith(prefix)) {
-        const key = line.slice(prefix.length, line.indexOf(':'));
-        const val = line.slice(line.indexOf(':') + 1).trim();
-        sug[key] = val;
-      }
-    });
-    if (sug.title) suggestions.push(sug);
-  }
-
-  suggestionsData = suggestions.map(s => ({
-    priority : s.priority || 'LOW',
-    id       : s.id       || '',
-    title    : s.title    || 'Untitled',
-    detail   : s.detail   || '',
-    target   : s.target   || '',
-    // map priority → category pill
-    category : priorityToCategory(s.priority),
-    time     : new Date().toLocaleTimeString('en-GB'),
-  }));
-
-  renderSuggestions();
-}
-
-function priorityToCategory(priority) {
-  switch ((priority || '').toUpperCase()) {
-    case 'CRITICAL':
-    case 'HIGH':     return 'safety';
-    case 'MEDIUM':   return 'routing';
-    case 'LOW':      return 'info';
-    default:         return 'info';
+    const parsed = parseSuggestions(txt);
+    if (parsed.length) suggestionsData = parsed;
+    renderSuggestions();
+    const el = document.getElementById('sugLastUpdate');
+    if (el) el.textContent = `Last updated: ${new Date().toLocaleTimeString('en-GB',{hour12:false})}`;
+  } catch(_) {
+    if (!suggestionsData.length) {
+      suggestionsData = getDemoSuggestions();
+      renderSuggestions();
+    }
   }
 }
 
-function renderSuggestions() {
-  const list = document.getElementById('suggestionsList');
-  if (!list) return;
-
-  const filtered = sugFilter === 'all'
-    ? suggestionsData
-    : suggestionsData.filter(s => s.category === sugFilter);
-
-  if (!filtered.length) {
-    list.innerHTML = `<div class="sug-empty">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="40" height="40">
-        <circle cx="12" cy="12" r="10"/>
-        <line x1="12" y1="8" x2="12" y2="12"/>
-        <line x1="12" y1="16" x2="12.01" y2="16"/>
-      </svg>
-      <p>No suggestions in this category.</p>
-    </div>`;
-    return;
-  }
-
-  const priorityColors = {
-    CRITICAL : 'var(--danger)',
-    HIGH     : 'var(--warning, #f59e0b)',
-    MEDIUM   : 'var(--accent)',
-    LOW      : 'var(--success)',
-  };
-
-  const priorityIcons = {
-    safety  : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`,
-    routing : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><polyline points="9 18 15 12 9 6"/></svg>`,
-    info    : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`,
-    resources:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M12 22s-8-6-8-12a8 8 0 0 1 16 0c0 6-8 12-8 12z"/></svg>`,
-  };
-
-  list.innerHTML = filtered.map(s => {
-    const col   = priorityColors[s.priority.toUpperCase()] || 'var(--accent)';
-    const icon  = priorityIcons[s.category] || priorityIcons.info;
-    const badge = `<span class="panel-badge" style="border-color:${col};color:${col}">${s.priority} ALERT</span>`;
-    return `
-      <div class="sug-card">
-        <div class="sug-icon-wrap" style="color:${col}">${icon}</div>
-        <div class="sug-content">
-          <div class="sug-card-head">
-            <span class="sug-card-title">${s.title}</span>
-            ${badge}
-          </div>
-          <div class="sug-card-body">${s.detail}</div>
-          ${s.target ? `<div class="sug-card-meta">Target: <strong>${s.target}</strong></div>` : ''}
-          <div class="sug-card-meta">Received at ${s.time}</div>
-        </div>
-      </div>`;
-  }).join('');
-}
-
-function filterSuggestions(cat, btn) {
-  sugFilter = cat;
-  document.querySelectorAll('.sug-pill').forEach(p => p.classList.remove('active'));
-  if (btn) btn.classList.add('active');
-  renderSuggestions();
-}
-
+// Parses the key:value format written by SuggestionEngine.java
 function parseSuggestions(raw) {
-  const lines = raw.split(/\r?\n/);
-  const results = [];
-  let current = null;
+  const lines  = raw.split(/\r?\n/);
+  const meta   = {};
+  const byIdx  = {};
 
   lines.forEach(line => {
     const t = line.trim();
-    if (!t) return;
+    if (!t || t.startsWith('#') || t === '---') return;
 
-    // Detect category header
-    const catMatch = t.match(/^\[?(RESOURCES?|ROUTING|SAFETY|INFO|GENERAL)\]?:?\s*(.*)?$/i);
-    if (catMatch) {
-      const cat = catMatch[1].toLowerCase().replace(/s$/,'');
-      const rest = (catMatch[2]||'').trim();
-      if (rest) {
-        current = { category: cat, title: rest, body: '', time: new Date().toLocaleTimeString('en-GB',{hour12:false}) };
-        results.push(current);
-      } else {
-        current = null;
-        // Next line will be title
-      }
+    // suggestion_N_field:value
+    const sugMatch = t.match(/^suggestion_(\d+)_(\w+):(.*)$/);
+    if (sugMatch) {
+      const idx   = parseInt(sugMatch[1], 10);
+      const field = sugMatch[2];
+      const val   = sugMatch[3].trim();
+      if (!byIdx[idx]) byIdx[idx] = {};
+      byIdx[idx][field] = val;
       return;
     }
 
-    // If line starts with - or * treat as a new suggestion
-    const bulletMatch = t.match(/^[-*•]\s+(.+)/);
-    if (bulletMatch) {
-      const cat = current?.category || inferCategory(bulletMatch[1]);
-      current = { category: cat, title: bulletMatch[1], body: '', time: new Date().toLocaleTimeString('en-GB',{hour12:false}) };
-      results.push(current);
-      return;
-    }
-
-    // Numbered list
-    const numMatch = t.match(/^\d+[.)]\s+(.+)/);
-    if (numMatch) {
-      const cat = inferCategory(numMatch[1]);
-      current = { category: cat, title: numMatch[1], body: '', time: new Date().toLocaleTimeString('en-GB',{hour12:false}) };
-      results.push(current);
-      return;
-    }
-
-    // Otherwise treat as body of current suggestion
-    if (current) {
-      current.body += (current.body ? ' ' : '') + t;
-    } else {
-      const cat = inferCategory(t);
-      current = { category: cat, title: t, body: '', time: new Date().toLocaleTimeString('en-GB',{hour12:false}) };
-      results.push(current);
-    }
+    // top-level meta  key:value
+    const metaMatch = t.match(/^([a-zA-Z_]+):(.*)$/);
+    if (metaMatch) meta[metaMatch[1]] = metaMatch[2].trim();
   });
-  return results;
+
+  const now = new Date().toLocaleTimeString('en-GB', { hour12:false });
+
+  return Object.keys(byIdx)
+    .sort((a, b) => Number(a) - Number(b))
+    .map(i => {
+      const s = byIdx[i];
+      return {
+        category: inferCategoryFromSuggestion(s),
+        title:    s.title  || s.id || 'Suggestion',
+        body:     s.detail || '',
+        meta:     s.target ? `Target: ${s.target}` : '',
+        priority: s.priority || 'LOW',
+        time:     now,
+      };
+    });
 }
 
-function inferCategory(text) {
-  const t = text.toLowerCase();
-  if (/deploy|staff|personnel|resource|medic|security|officer|unit/.test(t)) return 'resources';
-  if (/route|path|exit|entry|direct|navigate|gate|redirect/.test(t))         return 'routing';
-  if (/safe|danger|evacuate|emergency|crowd|crush|alert|warn/.test(t))       return 'safety';
+function inferCategoryFromSuggestion(s) {
+  const id    = (s.id    || '').toLowerCase();
+  const title = (s.title || '').toLowerCase();
+  if (/staff|dispatch|personnel|overflow|open_overflow/.test(id))         return 'resources';
+  if (/reroute|gate|throttle|bar_all|redirect/.test(id))                  return 'routing';
+  if (/bar_all|critical|crush|emergency|restrict/.test(id))               return 'safety';
+  if (/safe|danger|evacuate|emergency|warn|alert/.test(title))            return 'safety';
+  if (/route|path|exit|entry|gate|redirect|reroute/.test(title))          return 'routing';
+  if (/deploy|staff|personnel|resource|medic|security|overflow/.test(title)) return 'resources';
   return 'info';
 }
 
 function getDemoSuggestions() {
+  const now = new Date().toLocaleTimeString('en-GB',{hour12:false});
   return [
-    { category:'resources', title:'Deploy additional security to Zone A', body:'Zone A is approaching 75% capacity. Deploy 2 additional security officers near the main stage perimeter.', time: new Date().toLocaleTimeString('en-GB',{hour12:false}) },
-    { category:'routing',   title:'Redirect Gate 1 traffic to Gate 2',    body:'Gate 1 is experiencing high flow rates. Consider redirecting non-critical arrivals to Gate 2 to balance entry loads.', time: new Date().toLocaleTimeString('en-GB',{hour12:false}) },
-    { category:'safety',    title:'Monitor crowd density in Zone C',       body:'Predictive models indicate Zone C crowd density may increase in the next 10 minutes. Pre-position stewards.', time: new Date().toLocaleTimeString('en-GB',{hour12:false}) },
-    { category:'info',      title:'Event schedule update',                 body:'Main stage performance ends in 30 minutes. Prepare for post-show crowd dispersal.', time: new Date().toLocaleTimeString('en-GB',{hour12:false}) },
-    { category:'resources', title:'Medical team standby at Zone D',        body:'High occupancy in outdoor arena. Ensure medical team is on standby near Zone D exit points.', time: new Date().toLocaleTimeString('en-GB',{hour12:false}) },
-    { category:'routing',   title:'Open secondary exit lanes',             body:'If total occupancy exceeds 80%, activate secondary exit lanes on the north perimeter.', time: new Date().toLocaleTimeString('en-GB',{hour12:false}) },
+    { category:'resources', priority:'HIGH',   title:'Deploy additional security to Zone A',  body:'Zone A is approaching 75% capacity. Deploy 2 additional officers near the main stage perimeter.', meta:'Target: Zone A', time:now },
+    { category:'routing',   priority:'HIGH',   title:'Redirect Gate 1 traffic to Gate 2',     body:'Gate 1 is experiencing high flow rates. Direct non-critical arrivals to Gate 2 to balance load.', meta:'Target: Gate 1 → Gate 2', time:now },
+    { category:'safety',    priority:'MEDIUM', title:'Monitor crowd density in Zone C',        body:'Predictive models indicate Zone C may increase in the next 10 minutes. Pre-position stewards.', meta:'Target: Zone C', time:now },
+    { category:'info',      priority:'LOW',    title:'No action needed — monitor only',        body:'Crowd levels are within safe limits. Continue passive monitoring.', meta:'Target: All zones', time:now },
+    { category:'resources', priority:'MEDIUM', title:'Medical team standby at Zone D',         body:'High occupancy in outdoor arena. Ensure medical team is on standby near Zone D exits.', meta:'Target: Zone D', time:now },
+    { category:'routing',   priority:'LOW',    title:'Open secondary exit lanes',              body:'If total occupancy exceeds 80%, activate secondary exit lanes on the north perimeter.', meta:'Target: North perimeter', time:now },
   ];
 }
 
@@ -1019,15 +942,18 @@ function renderSuggestions() {
     </div>`;
     return;
   }
+
+  const icons = {
+    resources: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
+    routing:   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><polyline points="3 6 9 12 3 18"/><line x1="9" y1="12" x2="21" y2="12"/></svg>`,
+    safety:    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`,
+    info:      `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`,
+  };
+  const tags = { resources:'Resource Deploy', routing:'Routing', safety:'Safety Alert', info:'Information' };
+
   list.innerHTML = filtered.map((s, idx) => {
-    const icons = {
-      resources: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
-      routing:   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><polyline points="3 6 9 12 3 18"/><line x1="9" y1="12" x2="21" y2="12"/></svg>`,
-      safety:    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`,
-      info:      `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`,
-    };
-    const tags = { resources:'Resource Deploy', routing:'Safe Routing', safety:'Safety Alert', info:'Information' };
-    const cat  = s.category || 'info';
+    const cat = s.category || 'info';
+    const pri = (s.priority || 'LOW').toUpperCase();
     return `<div class="sug-card ${cat}" style="animation-delay:${idx*0.04}s">
       <div class="sug-icon-wrap">${icons[cat]||icons.info}</div>
       <div class="sug-card-content">
@@ -1036,7 +962,11 @@ function renderSuggestions() {
           <span class="sug-card-tag">${tags[cat]||'Info'}</span>
         </div>
         ${s.body ? `<div class="sug-card-body">${s.body}</div>` : ''}
-        <div class="sug-card-meta">Received at ${s.time}</div>
+        <div class="sug-card-meta">
+          <span class="sug-priority-badge ${pri}">${pri}</span>
+          ${s.meta ? `<span>${s.meta}</span>` : ''}
+          <span>Received at ${s.time}</span>
+        </div>
       </div>
     </div>`;
   }).join('');
@@ -1050,18 +980,17 @@ function filterSuggestions(cat, btn) {
 }
 
 // ════════════════════════════════════════════════════════════
-// ALERT FILE READER (data.txt → parse for alert lines)
+// ALERT FILE READER
 // ════════════════════════════════════════════════════════════
 async function fetchAlertFile() {
   try {
     const res = await fetch(DATA_FILE, { cache:'no-store' });
     if (!res.ok) throw new Error('data.txt unavailable');
-    const txt = await res.text();
+    const txt  = await res.text();
     const parsed = parseAlertFile(txt);
     if (parsed && parsed.length) {
       incidentsData = parsed;
     } else {
-      // No alert lines found — generate from sensor data
       incidentsData = generateIncidentsFromData();
     }
   } catch(_) {
@@ -1077,59 +1006,36 @@ async function fetchAlertFile() {
 function parseAlertFile(raw) {
   const lines = raw.split(/\r?\n/);
   const results = [];
-  const now = new Date().toLocaleTimeString('en-GB',{hour12:false});
-
   lines.forEach(line => {
     const t = line.trim();
     if (!t || t.startsWith('#')) return;
-
-    // Skip pure key=value lines (they're sensor data, not alerts)
-    if (/^[a-zA-Z0-9_]+\s*[:=]\s*-?\d/.test(t)) return;
-
-    // Look for severity keywords
-    const isRed    = /critical|emergency|danger|evacuate|red alert|high alert/i.test(t);
-    const isYellow = /warning|caution|watch|elevated|busy|surge|yellow/i.test(t);
-    const sev      = isRed ? 'red' : isYellow ? 'yellow' : 'green';
-
-    // Extract timestamp if present
-    const tsMatch = t.match(/\[(\d{1,2}:\d{2}(?::\d{2})?)\]/);
-    const ts = tsMatch ? tsMatch[1] : now;
-    const msg = t.replace(/\[.*?\]/g,'').trim();
-
-    if (msg) results.push({ severity: sev, title: msg, body: '', timestamp: ts, priority: isRed?1:isYellow?2:3 });
+    const sevMatch = t.match(/\[(RED|YELLOW|GREEN|HIGH|WARN|NORMAL|CAUTION)\]/i);
+    if (sevMatch) {
+      const rawSev = sevMatch[1].toUpperCase();
+      const sev = (rawSev==='HIGH'||rawSev==='RED') ? 'red'
+                : (rawSev==='WARN'||rawSev==='YELLOW'||rawSev==='CAUTION') ? 'yellow'
+                : 'green';
+      const body = t.replace(/\[.*?\]/g,'').trim();
+      if (body) {
+        results.push({ severity:sev, title:body, body:'', timestamp:new Date().toLocaleTimeString('en-GB',{hour12:false}), priority:sev==='red'?1:sev==='yellow'?2:3 });
+      }
+    }
   });
-
-  return results;
+  return results.sort((a,b) => a.priority - b.priority);
 }
 
 function generateIncidentsFromData() {
-  // Build incidents from current sensor state
-  const d    = currentData;
-  const now  = new Date().toLocaleTimeString('en-GB',{hour12:false});
-  const inc  = [];
+  const inc = [];
+  const now = new Date().toLocaleTimeString('en-GB',{hour12:false});
+  const d   = currentData;
   ZONES.forEach(z => {
     const v = d[z.key] || 0;
     if (v >= THRESH_CRIT) {
-      inc.push({
-        severity: 'red',
-        title: `${z.name} — Critical Density`,
-        body: `${v} people detected (${Math.round(v/MAX_ZONE*100)}% of ${MAX_ZONE} capacity). Immediate action required.`,
-        timestamp: now, priority: 1,
-      });
+      inc.push({ severity:'red', title:`${z.name} — Critical Density`, body:`${v} people detected (${Math.round(v/MAX_ZONE*100)}%). Immediate action required.`, timestamp:now, priority:1 });
     } else if (v >= THRESH_WARN) {
-      inc.push({
-        severity: 'yellow',
-        title: `${z.name} — Elevated Density`,
-        body: `${v} people detected (${Math.round(v/MAX_ZONE*100)}%). Approaching capacity threshold.`,
-        timestamp: now, priority: 2,
-      });
+      inc.push({ severity:'yellow', title:`${z.name} — Elevated Density`, body:`${v} people detected (${Math.round(v/MAX_ZONE*100)}%). Approaching capacity threshold.`, timestamp:now, priority:2 });
     } else {
-      inc.push({
-        severity: 'green',
-        title: `${z.name} — Normal`,
-        body: `${v} people. Crowd levels within acceptable range.`,
-        timestamp: now, priority: 3,
-      });
+      inc.push({ severity:'green', title:`${z.name} — Normal`, body:`${v} people. Crowd levels within acceptable range.`, timestamp:now, priority:3 });
     }
   });
   GATES.forEach(g => {
@@ -1146,9 +1052,7 @@ function generateIncidentsFromData() {
 function renderAlertsFeed() {
   const feed = document.getElementById('alertsFeed');
   if (!feed) return;
-  const filtered = alertFilter === 'all'
-    ? incidentsData
-    : incidentsData.filter(i => i.severity === alertFilter);
+  const filtered = alertFilter === 'all' ? incidentsData : incidentsData.filter(i => i.severity === alertFilter);
   if (!filtered.length) {
     feed.innerHTML = `<div class="no-alerts-msg">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="40" height="40"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
@@ -1162,7 +1066,6 @@ function renderAlertsFeed() {
     green:  `<svg class="inc-sev-icon" viewBox="0 0 24 24" fill="none" stroke="var(--sev-green)" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`,
   };
   const sevLabels = { red:'HIGH', yellow:'CAUTION', green:'NORMAL' };
-
   feed.innerHTML = filtered.map((inc, idx) => `
     <div class="incident-card ${inc.severity}${idx===0&&inc.severity==='red'?' new-alert':''}">
       <div class="incident-sev-badge">
@@ -1180,38 +1083,31 @@ function renderAlertsFeed() {
           ${inc.zone ? `<span class="incident-tag">${inc.zone}</span>` : ''}
         </div>
       </div>
-    </div>
-  `).join('');
+    </div>`
+  ).join('');
 }
 
 function updateSeveritySummary() {
   const counts = { green:0, yellow:0, red:0 };
   incidentsData.forEach(i => { counts[i.severity] = (counts[i.severity]||0)+1; });
-  setEl('sevNumGreen', counts.green);
+  setEl('sevNumGreen',  counts.green);
   setEl('sevNumYellow', counts.yellow);
-  setEl('sevNumRed', counts.red);
+  setEl('sevNumRed',    counts.red);
 
   const chip = document.getElementById('sevStatusChip');
   if (!chip) return;
-  if (counts.red > 0) {
-    chip.className='sev-status alert'; chip.textContent='HIGH ALERT';
-    currentSeverity='red';
-  } else if (counts.yellow > 0) {
-    chip.className='sev-status caution'; chip.textContent='CAUTION';
-    currentSeverity='yellow';
-  } else {
-    chip.className='sev-status normal'; chip.textContent='SYSTEM NORMAL';
-    currentSeverity='green';
-  }
+  if (counts.red > 0)         { chip.className='sev-status alert';   chip.textContent='HIGH ALERT'; currentSeverity='red'; }
+  else if (counts.yellow > 0) { chip.className='sev-status caution'; chip.textContent='CAUTION';    currentSeverity='yellow'; }
+  else                        { chip.className='sev-status normal';  chip.textContent='SYSTEM NORMAL'; currentSeverity='green'; }
 }
 
 function applyAlertTabColor() {
   const navAlert = document.getElementById('nav-alerts');
   if (!navAlert) return;
   navAlert.classList.remove('alert-sev-green','alert-sev-yellow','alert-sev-red');
-  if (currentSeverity === 'red')    navAlert.classList.add('alert-sev-red');
+  if (currentSeverity === 'red')         navAlert.classList.add('alert-sev-red');
   else if (currentSeverity === 'yellow') navAlert.classList.add('alert-sev-yellow');
-  else                               navAlert.classList.add('alert-sev-green');
+  else                                   navAlert.classList.add('alert-sev-green');
 }
 
 function filterAlerts(sev, btn) {
@@ -1238,14 +1134,15 @@ function openModal(zoneKey) {
   const avg = sessionCounts[zoneKey] > 0 ? Math.round(sessionSums[zoneKey]/sessionCounts[zoneKey]) : v;
   const col = s==='low'?'var(--low)':s==='medium'?'var(--med)':'var(--high)';
 
-  document.getElementById('modalTitle').textContent = `${z.name} — ${z.sub}`;
+  setEl('modalTitle', `${z.name} — ${z.sub}`);
   const mc = document.getElementById('mCount');
-  mc.textContent = v; mc.style.color = col;
-  document.getElementById('mMax').textContent = sessionMax[zoneKey];
-  document.getElementById('mAvg').textContent = avg;
+  if (mc) { mc.textContent = v; mc.style.color = col; }
+  setEl('mMax', sessionMax[zoneKey]);
+  setEl('mAvg', avg);
 
   const pred = computePrediction(history[zoneKey], zoneKey);
-  document.getElementById('modalMeta').innerHTML =
+  const meta = document.getElementById('modalMeta');
+  if (meta) meta.innerHTML =
     `Gateway: ${z.gate} &nbsp;·&nbsp; Capacity: ${MAX_ZONE} &nbsp;·&nbsp;
      Occupancy: ${Math.round(v/MAX_ZONE*100)}% &nbsp;·&nbsp;
      Status: <span style="color:${col}">${s.toUpperCase()}</span>
@@ -1320,20 +1217,4 @@ function exportCSV() {
   a.href = URL.createObjectURL(blob);
   a.download = `crowdtrack_${new Date().toISOString().slice(0,10)}.csv`;
   a.click();
-// ════════════════════════════════════════════════════════════
-// LIVE CAMERA COUNT POLL
-// ════════════════════════════════════════════════════════════
-async function pollCameraCount() {
-  try {
-    const res = await fetch('http://127.0.0.1:5000/count', { cache: 'no-store' });
-    if (!res.ok) return;
-    const json = await res.json();
-    const el = document.getElementById('liveCamCount');
-    if (el && json.count !== undefined) el.textContent = json.count;
-  } catch (_) { /* server not running */ }
 }
-// Start polling when app boots — add to startApp():
-// setInterval(pollCameraCount, 1000);
-}
-
-
