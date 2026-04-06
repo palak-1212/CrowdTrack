@@ -869,3 +869,23 @@ function renderPredictionBanner(pred){
   update('');   // overview banner
   update('2');  // prediction tab banner
 }
+function renderZoneGrid(d){
+  const el=document.getElementById('zoneGrid');
+  const hasHigh=ZONES.some(z=>statusOf(d[z.key]||0)==='high');
+  const hasMed =ZONES.some(z=>statusOf(d[z.key]||0)==='medium');
+  const badge=document.getElementById('overviewZoneBadge');
+  if(hasHigh){badge.textContent='CRITICAL';badge.style.borderColor='var(--danger)';badge.style.color='var(--danger)';}
+  else if(hasMed){badge.textContent='WARNING';badge.style.borderColor='var(--warn)';badge.style.color='var(--warn)';}
+  else{badge.textContent='ALL CLEAR';badge.style.borderColor='var(--accent)';badge.style.color='var(--accent)';}
+  el.innerHTML=ZONES.map(z=>{
+    const c=d[z.key]||0,s=statusOf(c),col=statusColor(s);
+    const pct=Math.min(100,(c/MAX_ZONE)*100).toFixed(0);
+    return `<div class="zone-card" onclick="openModal('${z.key}')" style="--zone-color:${col}">
+      <div class="zone-card-name">${z.name}</div>
+      <div class="zone-card-count" style="color:${col}">${c}</div>
+      <div class="zone-card-sub">${z.sub}</div>
+      <div class="zone-card-bar"><div class="zone-card-fill" style="width:${pct}%;background:${col}"></div></div>
+      <div class="zone-pill ${s}"><span class="zone-pill-dot"></span>${s==='low'?'Clear':s==='medium'?'Busy':'Critical'}</div>
+    </div>`;
+  }).join('');
+}
