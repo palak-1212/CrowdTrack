@@ -1,4 +1,4 @@
-public class networksimultor{
+public class NetworkSimultor{
     private final DataCollector collector;
 
     public NetworkSimulator(DataCollector collector) {
