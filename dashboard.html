@@ -109,3 +109,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 .alert-badge svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.8}
 .badge-count{position:absolute;top:2px;right:2px;min-width:14px;height:14px;background:var(--danger);border-radius:7px;font-size:.52rem;font-weight:700;color:#fff;display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);padding:0 3px;animation:badgePulse 1.5s ease-in-out infinite}
 @keyframes badgePulse{0%,100%{opacity:1}50%{opacity:.65}}
+
+.page-body{padding:24px;flex:1;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--accent2) transparent}
+.page-body::-webkit-scrollbar{width:4px}
+.page-body::-webkit-scrollbar-track{background:transparent}
+.page-body::-webkit-scrollbar-thumb{background:var(--accent2);border-radius:2px}
