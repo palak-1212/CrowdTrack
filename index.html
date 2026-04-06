@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+<title>CrowdTrack — Operator Console</title>
+<link rel="stylesheet" href="style.css"/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+</head>
+<body>
+
+<!-- ══ LOGIN ════════════════════════════════════════════════════ -->
+<div class="screen active" id="s-login">
+  <div class="login-grid"></div>
+  <div class="login-box">
+    <div class="login-badge">
+      <div class="ct-logo-large">CT</div>
+      <div class="login-badge-text">
+        <strong>CrowdTrack</strong>
+        Operator Monitoring Console · v2.5
+      </div>
+    </div>
+    <div class="login-divider"></div>
+    <div class="login-label">Operator ID</div>
+    <input class="login-input" id="loginUser" type="text" placeholder="e.g. OP-001" autocomplete="off"/>
+    <div class="login-label">Access Code</div>
+    <input class="login-input" id="loginPass" type="password" placeholder="••••••••"/>
+    <button class="login-btn" onclick="tryLogin()">AUTHENTICATE</button>
+    <div class="login-error" id="loginErr">⚠ Invalid credentials. Try admin / admin</div>
+    <div class="login-footer">
+      Authorised personnel only · Sessions are logged<br>
+      Default: <code>admin</code> / <code>admin</code>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MAIN APP ════════════════════════════════════════════════ -->
+<div class="screen" id="s-main">
+
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <div class="ct-logo">CT</div>
+      <div>
+        <div class="sidebar-logo-text">CrowdTrack</div>
+        <div class="sidebar-logo-sub">Operator Console</div>
+      </div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section-title">Monitoring</div>
+
+      <!-- Overview & Predictions -->
+      <div class="nav-link active" id="nav-overview" onclick="showTab('t-overview',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/>
+          <line x1="6" y1="20" x2="6" y2="14"/>
+          <path d="M2 20h20" stroke-opacity=".4"/>
+        </svg>
+        Overview &amp; Predictions
+      </div>
+
+      <!-- Monitor -->
+      <div class="nav-link" id="nav-monitor" onclick="showTab('t-monitor',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <path d="M8 12a4 4 0 0 1 8 0"/>
+          <path d="M4 12a8 8 0 0 1 16 0"/>
+        </svg>
+        Monitor
+      </div>
+
+      <!-- Zones -->
+      <div class="nav-link" id="nav-zones" onclick="showTab('t-zones',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
+        </svg>
+        Zones
+      </div>
+
+      <div class="nav-section-title">Operations</div>
+
+      <!-- Suggestions -->
+      <div class="nav-link" id="nav-suggestions" onclick="showTab('t-suggestions',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="12" y1="8" x2="12" y2="12"/>
+          <line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        Suggestions
+      </div>
+
+      <!-- Alerts & Incidents — dynamic color tab -->
+      <div class="nav-link" id="nav-alerts" onclick="showTab('t-alerts',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+          <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+        </svg>
+        Alerts &amp; Incidents
+        <span id="navAlertCount" class="nav-alert-badge" style="display:none"></span>
+      </div>
+
+      <div class="nav-section-title">Data</div>
+
+      <!-- Reports -->
+      <div class="nav-link" id="nav-report" onclick="showTab('t-report',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="16" y1="13" x2="8" y2="13"/>
+          <line x1="16" y1="17" x2="8" y2="17"/>
+        </svg>
+        Reports
+      </div>
+    </nav>
+    <div class="sidebar-user">
+      <div class="user-avatar" id="userAvatar">OP</div>
+      <div class="user-meta">
+        <div class="user-name" id="userName">Operator</div>
+        <div class="user-role">Monitoring · Live</div>
+      </div>
+      <button class="logout-btn" onclick="logout()" title="Logout">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      </button>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <div class="main-content">
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="menu-toggle" onclick="toggleSidebar()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+        <span class="topbar-title" id="topbarTitle">Overview &amp; Predictions</span>
+        <div class="live-chip"><div class="live-dot"></div>LIVE</div>
+      </div>
+      <div class="topbar-right">
+        <span class="topbar-time" id="topbarTime"></span>
+        <button class="alert-badge-btn" onclick="showTab('t-alerts', document.getElementById('nav-alerts'))" title="Alerts">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          <span class="badge-count" id="topAlertBadge" style="display:none"></span>
+        </button>
+      </div>
+    </header>
+
+    <div class="page-body">
+
+      <!-- ══ OVERVIEW & PREDICTIONS TAB ══ -->
+      <div class="tab-page active" id="t-overview">
+
+        <!-- Prediction banner -->
+        <div class="prediction-panel">
+          <div class="prediction-head">
+            <span class="panel-title">Crowd Prediction · Trend Analysis</span>
+            <span id="predSampleCount" class="pred-sample-label">Awaiting data…</span>
+          </div>
+          <div class="prediction-body">
+            <div class="prediction-icon-wrap stable" id="predIconWrap">
+              <!-- Graph icon SVG -->
+              <svg id="predSvgIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="26" height="26">
+                <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/>
+                <line x1="6" y1="20" x2="6" y2="14"/>
+                <path d="M2 20h20" stroke-opacity=".5"/>
+              </svg>
+            </div>
+            <div class="prediction-main">
+              <div class="prediction-label">Current Forecast</div>
+              <div class="prediction-status stable" id="predStatus">Awaiting Data</div>
+              <div class="prediction-detail" id="predDetail">Collecting baseline readings…</div>
+            </div>
+            <div class="prediction-indicators">
+              <div class="pred-indicator">
+                <div class="pred-indicator-label">5-pt Trend</div>
+                <div class="pred-indicator-val" id="predTrendDelta">—</div>
+              </div>
+              <div class="pred-indicator">
+                <div class="pred-indicator-label">Avg Change</div>
+                <div class="pred-indicator-val" id="predAvgChange">—</div>
+              </div>
+              <div class="pred-indicator">
+                <div class="pred-indicator-label">Peak Forecast</div>
+                <div class="pred-indicator-val" id="predPeakForecast">—</div>
+              </div>
+              <div class="pred-indicator">
+                <div class="pred-indicator-label">Confidence</div>
+                <div class="pred-indicator-val" id="predConfidence">—</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Stat cards -->
+        <div class="stat-grid">
+          <div class="stat-card accent">
+            <div class="stat-label">Total Occupancy</div>
+            <div class="stat-val" id="statTotal">—</div>
+            <div class="stat-sub" id="statOccPct">— % of capacity</div>
+          </div>
+          <div class="stat-card" id="statPeakCard">
+            <div class="stat-label">Peak Zone</div>
+            <div class="stat-val" id="statPeak">—</div>
+            <div class="stat-sub" id="statPeakVal">— people</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Gate 1 Flow</div>
+            <div class="stat-val" id="statGate1">—</div>
+            <div class="stat-sub">people / min</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Gate 2 Flow</div>
+            <div class="stat-val" id="statGate2">—</div>
+            <div class="stat-sub">people / min</div>
+          </div>
+          <div class="stat-card" id="statAlertCard">
+            <div class="stat-label">Active Alerts</div>
+            <div class="stat-val" id="statAlerts">0</div>
+            <div class="stat-sub">last 5 minutes</div>
+          </div>
+        </div>
+
+        <!-- Metrics row -->
+        <div class="metrics-row">
+          <div class="metric-chip">
+            <div class="metric-icon" style="background:rgba(37,99,235,0.1);color:var(--accent)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </div>
+            <div class="metric-data">
+              <div class="metric-label">Session Avg</div>
+              <div class="metric-val" id="metricSessionAvg">—</div>
+            </div>
+          </div>
+          <div class="metric-chip">
+            <div class="metric-icon" style="background:rgba(5,150,105,0.1);color:var(--success)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+            </div>
+            <div class="metric-data">
+              <div class="metric-label">Session Max</div>
+              <div class="metric-val" id="metricSessionMax">—</div>
+            </div>
+          </div>
+          <div class="metric-chip">
+            <div class="metric-icon" style="background:rgba(8,145,178,0.1);color:var(--info)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </div>
+            <div class="metric-data">
+              <div class="metric-label">Uptime</div>
+              <div class="metric-val" id="metricUptime">—</div>
+            </div>
+          </div>
+          <div class="metric-chip">
+            <div class="metric-icon" style="background:rgba(217,119,6,0.1);color:var(--warn)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+            </div>
+            <div class="metric-data">
+              <div class="metric-label">Data Points</div>
+              <div class="metric-val" id="metricDataPts">—</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row row-3">
+          <div class="panel">
+            <div class="panel-head">
+              <span class="panel-title">Zone Status</span>
+              <span class="panel-badge" id="overviewZoneBadge" style="border-color:var(--accent);color:var(--accent)">ALL CLEAR</span>
+            </div>
+            <div class="panel-body">
+              <div class="zone-grid" id="zoneGrid"></div>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:16px">
+            <div class="panel">
+              <div class="panel-head"><span class="panel-title">Entry Gates</span></div>
+              <div class="panel-body" style="padding:12px">
+                <div class="gate-grid" id="gateGrid"></div>
+              </div>
+            </div>
+            <div class="panel" style="flex:1">
+              <div class="panel-head"><span class="panel-title">Recent Alerts</span></div>
+              <div class="panel-body" style="padding:8px">
+                <div class="alert-list" id="alertList">
+                  <div class="no-alerts">No alerts</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><span class="panel-title">Occupancy Trend (last 60 ticks)</span></div>
+          <div class="panel-body">
+            <div class="chart-wrap"><canvas id="trendChart"></canvas></div>
+          </div>
+        </div>
+
+        <!-- Zone predictions grid -->
+        <div class="panel" style="margin-top:16px">
+          <div class="panel-head">
+            <span class="panel-title">Per-Zone Predictions</span>
+            <span style="font-size:.6rem;font-family:var(--font-mono);color:var(--muted)">5-point rolling window</span>
+          </div>
+          <div class="panel-body">
+            <div class="zone-pred-grid" id="zonePredGrid"></div>
+          </div>
+        </div>
+
+      </div><!-- /t-overview -->
+
+      <!-- ══ MONITOR TAB ══ -->
+      <div class="tab-page" id="t-monitor">
+
+        <div class="panel" style="margin-bottom:16px">
+          <div class="panel-head">
+            <span class="panel-title">Crowd Density Timeline — RYG Intensity</span>
+            <span class="panel-badge" style="border-color:var(--accent);color:var(--accent)">LIVE</span>
+          </div>
+          <div class="panel-body" style="padding:16px 16px 12px">
+            <div class="ryg-graph-wrap" id="rygWrap">
+              <canvas id="rygCanvas" style="display:block;width:100%;height:100%"></canvas>
+            </div>
+            <div class="ryg-legend">
+              <div class="ryg-legend-item"><span class="ryg-swatch" style="background:#10b981"></span>Low (0–62%)</div>
+              <div class="ryg-legend-item"><span class="ryg-swatch" style="background:#f59e0b"></span>Medium (63–83%)</div>
+              <div class="ryg-legend-item"><span class="ryg-swatch" style="background:#ef4444"></span>Critical (84%+)</div>
+              <div style="margin-left:auto;font-size:.62rem;font-family:var(--font-mono);color:var(--muted2)">← last 60 ticks · now →</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Heatmap -->
+        <div class="panel" style="margin-bottom:16px">
+          <div class="panel-head">
+            <span class="panel-title">Venue Heatmap</span>
+            <span class="panel-badge" style="border-color:var(--info);color:var(--info)">LIVE</span>
+          </div>
+          <div class="panel-body">
+            <div class="heatmap-wrap">
+              <canvas class="heatmap-canvas" id="heatmapCanvas"></canvas>
+            </div>
+            <div class="heatmap-legend">
+              <span>Low</span><div class="legend-bar"></div><span>High</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="row row-2">
+          <div class="panel">
+            <div class="panel-head"><span class="panel-title">Zone Comparison (Bar)</span></div>
+            <div class="panel-body">
+              <div class="chart-wrap" style="height:220px"><canvas id="barChart"></canvas></div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><span class="panel-title">Gate Flow Comparison</span></div>
+            <div class="panel-body">
+              <div class="chart-wrap" style="height:220px"><canvas id="gateBarChart"></canvas></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Live camera / people counts -->
+        <div class="row row-2" style="margin-top:16px">
+          <div class="panel">
+            <div class="panel-head">
+              <span class="panel-title">Camera Feed — Zone A/B</span>
+              <span class="panel-badge" style="border-color:var(--success);color:var(--success)">ONLINE</span>
+            </div>
+            <div class="panel-body" style="padding:0">
+              <div class="cam-feed" id="camFeedAB">
+                <div class="cam-overlay">
+                  <div class="cam-count" id="camCountAB">—</div>
+                  <div class="cam-label">people detected</div>
+                </div>
+                <canvas id="camCanvasAB" class="cam-canvas"></canvas>
+              </div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-head">
+              <span class="panel-title">Camera Feed — Zone C/D</span>
+              <span class="panel-badge" style="border-color:var(--success);color:var(--success)">ONLINE</span>
+            </div>
+            <div class="panel-body" style="padding:0">
+              <div class="cam-feed" id="camFeedCD">
+                <div class="cam-overlay">
+                  <div class="cam-count" id="camCountCD">—</div>
+                  <div class="cam-label">people detected</div>
+                </div>
+                <canvas id="camCanvasCD" class="cam-canvas"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /t-monitor -->
+
+      <!-- ══ ZONES TAB ══ -->
+      <div class="tab-page" id="t-zones">
+        <div class="zones-full-grid" id="zonesFullGrid"></div>
+      </div>
+
+      <!-- ══ SUGGESTIONS TAB ══ -->
+      <div class="tab-page" id="t-suggestions">
+        <div class="suggestions-header">
+          <div>
+            <h2 class="suggestions-title">Operational Suggestions</h2>
+            <p class="suggestions-sub">Live recommendations from the system — auto-refreshes every 5 seconds</p>
+          </div>
+          <div class="suggestions-meta">
+            <span class="sug-last-update" id="sugLastUpdate">—</span>
+            <button class="refresh-btn" onclick="fetchSuggestions(true)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+              Refresh
+            </button>
+          </div>
+        </div>
+
+        <!-- Category filter pills -->
+        <div class="sug-filter-row">
+          <button class="sug-pill active" onclick="filterSuggestions('all',this)">All</button>
+          <button class="sug-pill" onclick="filterSuggestions('resources',this)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M12 22s-8-6-8-12a8 8 0 0 1 16 0c0 6-8 12-8 12z"/></svg>
+            Resources
+          </button>
+          <button class="sug-pill" onclick="filterSuggestions('routing',this)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><polyline points="9 18 15 12 9 6"/></svg>
+            Routing
+          </button>
+          <button class="sug-pill" onclick="filterSuggestions('safety',this)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            Safety
+          </button>
+          <button class="sug-pill" onclick="filterSuggestions('info',this)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            Info
+          </button>
+        </div>
+
+        <div class="suggestions-list" id="suggestionsList">
+          <div class="sug-empty">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="40" height="40"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <p>No suggestions loaded. Waiting for suggestion.txt…</p>
+          </div>
+        </div>
+      </div><!-- /t-suggestions -->
+
+      <!-- ══ ALERTS & INCIDENTS TAB ══ -->
+      <div class="tab-page" id="t-alerts">
+
+        <div class="alerts-header">
+          <div>
+            <h2 class="alerts-title">Alerts &amp; Incidents</h2>
+            <p class="alerts-sub">Live feed from data.txt — auto-refreshes every 3 seconds</p>
+          </div>
+          <div class="alerts-meta">
+            <div class="severity-legend">
+              <span class="sev-dot green"></span>Normal
+              <span class="sev-dot yellow"></span>Caution
+              <span class="sev-dot red"></span>High Alert
+            </div>
+            <span class="alert-last-update" id="alertLastUpdate">—</span>
+          </div>
+        </div>
+
+        <!-- Severity summary bar -->
+        <div class="severity-bar" id="severityBar">
+          <div class="sev-count green" id="sevCountGreen">
+            <div class="sev-count-num" id="sevNumGreen">0</div>
+            <div class="sev-count-label">Normal</div>
+          </div>
+          <div class="sev-count yellow" id="sevCountYellow">
+            <div class="sev-count-num" id="sevNumYellow">0</div>
+            <div class="sev-count-label">Caution</div>
+          </div>
+          <div class="sev-count red" id="sevCountRed">
+            <div class="sev-count-num" id="sevNumRed">0</div>
+            <div class="sev-count-label">High Alert</div>
+          </div>
+          <div class="sev-status" id="sevStatusChip">SYSTEM NORMAL</div>
+        </div>
+
+        <!-- Alert filter -->
+        <div class="alert-filter-row">
+          <button class="alert-pill active" onclick="filterAlerts('all',this)">All Alerts</button>
+          <button class="alert-pill green-pill" onclick="filterAlerts('green',this)">Normal</button>
+          <button class="alert-pill yellow-pill" onclick="filterAlerts('yellow',this)">Caution</button>
+          <button class="alert-pill red-pill" onclick="filterAlerts('red',this)">High Alert</button>
+          <button class="clear-alerts-btn" onclick="clearAllAlerts()">Clear All</button>
+        </div>
+
+        <div class="alerts-feed" id="alertsFeed">
+          <div class="no-alerts-msg">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="40" height="40"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            <p>No alerts. System is running normally.</p>
+          </div>
+        </div>
+      </div><!-- /t-alerts -->
+
+      <!-- ══ REPORTS TAB ══ -->
+      <div class="tab-page" id="t-report">
+        <div class="report-header">
+          <div>
+            <h2 class="report-title">Data Log &amp; Reports</h2>
+            <p class="report-sub">Historical session data · last 50 records</p>
+          </div>
+          <button class="export-btn" onclick="exportCSV()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Export CSV
+          </button>
+        </div>
+        <div class="panel">
+          <div class="panel-body" style="padding:0;overflow-x:auto">
+            <table class="report-table">
+              <thead>
+                <tr>
+                  <th>Time</th><th>Zone 1</th><th>Zone 2</th><th>Zone 3</th><th>Zone 4</th>
+                  <th>Gate 1</th><th>Gate 2</th><th>Total</th><th>Occ%</th><th>Prediction</th>
+                </tr>
+              </thead>
+              <tbody id="reportBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div><!-- /t-report -->
+
+    </div><!-- /page-body -->
+  </div><!-- /main-content -->
+
+  <!-- Zone Modal -->
+  <div class="zone-modal" id="zoneModal" onclick="closeModal(event)">
+    <div class="zone-modal-inner">
+      <div class="zone-modal-head">
+        <span class="zone-modal-title" id="modalTitle">Zone</span>
+        <button class="zone-modal-close" onclick="document.getElementById('zoneModal').classList.remove('open')">✕</button>
+      </div>
+      <div class="zone-modal-stats">
+        <div class="mstat"><div class="mstat-label">Current</div><div class="mstat-val" id="mCount">—</div></div>
+        <div class="mstat"><div class="mstat-label">Session Max</div><div class="mstat-val" id="mMax">—</div></div>
+        <div class="mstat"><div class="mstat-label">Session Avg</div><div class="mstat-val" id="mAvg">—</div></div>
+      </div>
+      <div class="zone-modal-meta" id="modalMeta"></div>
+      <canvas id="modalChart" style="width:100%;height:140px;border-radius:3px;background:var(--bg)"></canvas>
+    </div>
+  </div>
+
+</div><!-- /s-main -->
+
+<script src="script.js"></script>
+</body>
+</html>
