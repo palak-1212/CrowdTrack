@@ -916,3 +916,26 @@ function renderAlertList(){
       </div>
     </div>`).join('');
 }
+function renderAlertsTab(){
+  const el=document.getElementById('alertFullList');
+  const visible=alerts.filter(a=>!a.cleared);
+  if(!visible.length){
+    el.innerHTML='<div style="text-align:center;padding:40px;font-size:.78rem;font-family:var(--font-mono);color:var(--muted2)">No active alerts</div>';
+    return;
+  }
+  el.innerHTML=visible.map((a,i)=>`
+    <div class="alert-full-item ${a.level}">
+      <div class="alert-full-icon">
+        <svg viewBox="0 0 24 24">
+          ${a.level==='danger'?'<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/>':'<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/>'}
+        </svg>
+      </div>
+      <div style="flex:1">
+        <div class="alert-full-msg">${a.msg}</div>
+        <div class="alert-full-meta">${a.time} · ${a.zone}</div>
+      </div>
+      <button class="alert-clear-btn" onclick="clearAlert(${i})">Dismiss</button>
+    </div>`).join('');
+}
+function clearAlert(idx){ alerts[idx].cleared=true; renderAlertList(); renderAlertsTab(); }
+function clearAlerts(){ alerts.forEach(a=>a.cleared=true); renderAlertList(); renderAlertsTab(); }
