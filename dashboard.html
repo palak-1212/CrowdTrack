@@ -94,3 +94,18 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 .logout-btn{background:none;border:none;color:var(--muted2);cursor:pointer;padding:4px;border-radius:3px;transition:color .15s}
 .logout-btn:hover{color:var(--danger)}
 .logout-btn svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2}
+
+.main-content{margin-left:var(--nav-w);flex:1;display:flex;flex-direction:column;min-height:100vh}
+.topbar{padding:0 24px;height:54px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:rgba(2,10,22,.97);position:sticky;top:0;z-index:40;backdrop-filter:blur(10px);box-shadow:0 1px 20px rgba(0,0,0,.4)}
+.topbar-left{display:flex;align-items:center;gap:14px}
+.topbar-title{font-family:var(--font-d);font-size:.78rem;font-weight:700;letter-spacing:2px;color:var(--accent)}
+.live-chip{display:inline-flex;align-items:center;gap:5px;background:rgba(0,229,255,.07);border:1px solid rgba(0,229,255,.2);color:var(--accent);font-size:.62rem;font-family:var(--font-mono);font-weight:600;text-transform:uppercase;letter-spacing:.08em;padding:3px 9px;border-radius:2px}
+.live-dot{width:5px;height:5px;background:var(--accent);border-radius:50%;animation:blink 1.2s ease infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.topbar-right{display:flex;align-items:center;gap:10px}
+.topbar-time{font-size:.72rem;font-family:var(--font-mono);color:var(--muted)}
+.alert-badge{position:relative;cursor:pointer;background:none;border:none;color:var(--muted);display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:3px;transition:all .15s}
+.alert-badge:hover{background:var(--surface2);color:var(--text)}
+.alert-badge svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.8}
+.badge-count{position:absolute;top:2px;right:2px;min-width:14px;height:14px;background:var(--danger);border-radius:7px;font-size:.52rem;font-weight:700;color:#fff;display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);padding:0 3px;animation:badgePulse 1.5s ease-in-out infinite}
+@keyframes badgePulse{0%,100%{opacity:1}50%{opacity:.65}}
