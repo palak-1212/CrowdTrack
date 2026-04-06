@@ -148,3 +148,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 .stat-sub{font-size:.67rem;color:var(--muted);margin-top:4px;font-family:var(--font-mono)}
 .stat-card.warn .stat-val{color:var(--warn)}
 .stat-card.danger .stat-val{color:var(--danger)}
+
+.row{display:grid;gap:16px;margin-bottom:16px}
+.row-2{grid-template-columns:1fr 1fr}
+.row-3{grid-template-columns:2fr 1fr}
+@media(max-width:900px){.row-2,.row-3{grid-template-columns:1fr}}
